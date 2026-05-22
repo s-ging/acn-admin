@@ -42,32 +42,38 @@ export default function CompanyEditor() {
 
   return (
     <div className="company-editor">
-      <div className="editor-main">
 
-        <div className="editor-topbar">
-          <div className="editor-breadcrumb">
-            Companies &rsaquo; <strong>{draft.name_en}</strong>
-          </div>
-          <div className="editor-topbar-right">
-            <Button variant="ghost" size="sm" onClick={resetDraft}>
-              Discard
-            </Button>
-            <Button variant="primary" size="sm">
-              Save changes
-            </Button>
-          </div>
+      <div className="editor-topbar">
+        <div className="editor-breadcrumb">
+          Companies &rsaquo; <strong>{draft.name_en}</strong>
         </div>
-
-        <h1>{draft.name_en}</h1>
-
-        <TabBar tabs={TABS} active={activeTab} onChange={setTab} />
-
-        <div className="editor-canvas">
-          <ActiveTab />
+        <div className="editor-topbar-right">
+          <Button variant="ghost" size="sm" onClick={resetDraft}>
+            Discard
+          </Button>
+          <Button variant="primary" size="sm">
+            Save changes
+          </Button>
         </div>
-
       </div>
-      <MetadataPanel />
+
+      <div className="editor-body">
+        <div className="editor-main">
+          <div className="editor-company-header">
+              <h1>{draft.name_en}</h1>
+              <div className="input-box editor-company-id">
+                <span className="font-semibold">Company ID</span>
+                <span className="text-gray-500">{draft.id}</span>
+              </div>
+            </div>
+          <TabBar tabs={TABS} active={activeTab} onChange={setTab} />
+          <div className="editor-canvas">
+            <ActiveTab />
+          </div>
+        </div>
+        <MetadataPanel />
+      </div>
+
     </div>
   )
 }

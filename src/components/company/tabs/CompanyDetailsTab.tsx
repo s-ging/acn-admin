@@ -12,7 +12,7 @@ function EmptyState({ label }: { label: string }) {
   return (
     <div className="empty-state">
       <div dangerouslySetInnerHTML={{ __html: EMPTY_SVG }} />
-      <span className="empty-state__label">No records to show. Add a {label}</span>
+      <span className="label">No records to show. Add a {label}</span>
     </div>
   )
 }
@@ -37,7 +37,7 @@ function SectorSearchPanel({ onSave, onCancel }: {
 
   return (
     <div className="contact-card" style={{ marginBottom: 16 }}>
-      <div className="contact-card__new-label">Add sector</div>
+      <div className="label">Add sector</div>
       <div className="wire-search">
         <div className="wire-search__input-row">
           <span className="wire-search__icon">○</span>

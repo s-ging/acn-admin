@@ -51,7 +51,7 @@ function RSSForm({ initial, onSave, onCancel }: {
         <Field label="Feed name" value={form.feed_name} placeholder="e.g. ACN Newswire - Asia" onChange={e => set('feed_name', e.target.value)} />
         <Field label="URL" value={form.url} placeholder="e.g. https://www.acnnewswire.com/rss/sector/211" onChange={e => set('url', e.target.value)} />
         <div className="field">
-          <label className="field__label">Status</label>
+          <label className="label">Status</label>
           <select className="field__select" value={form.status} onChange={e => set('status', e.target.value as 'active' | 'paused')}>
             <option value="active">Active</option>
             <option value="paused">Paused</option>
@@ -60,7 +60,7 @@ function RSSForm({ initial, onSave, onCancel }: {
       </div>
       <div className="contact-form__row contact-form__row--4">
         <div className="field">
-          <label className="field__label">Sector</label>
+          <label className="label">Sector</label>
           <select className="field__select" value={form.sector_name} onChange={e => set('sector_name', e.target.value)}>
             <option value="">e.g. Aerospace &amp; Defense</option>
             {MOCK_SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -169,7 +169,7 @@ export default function DistributionTab() {
 
       {addingWire && (
         <div className="contact-card" style={{ marginBottom: 16 }}>
-          <div className="contact-card__new-label">Add new wire service</div>
+          <div className="label">Add new wire service</div>
           <div className="wire-search">
             <div className="wire-search__input-row">
               <span className="wire-search__icon">○</span>
@@ -233,7 +233,7 @@ export default function DistributionTab() {
 
       {addingFeed && (
         <div className="contact-card" style={{ marginBottom: 16 }}>
-          <div className="contact-card__new-label">Add new feed</div>
+          <div className="label">Add new feed</div>
           <RSSForm initial={EMPTY_RSS} onSave={handleSaveFeed} onCancel={() => setAddingFeed(false)} />
         </div>
       )}
@@ -282,35 +282,35 @@ export default function DistributionTab() {
 
       <div className="delivery-grid">
         <div className="delivery-row">
-          <span className="delivery-row__label">Allow Access</span>
+          <span className="label">Allow Access</span>
           <Toggle checked={ds.allow_access} onChange={v => handleDelivery('allow_access', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Show Extended Boilerplate</span>
+          <span className="label">Show Extended Boilerplate</span>
           <Toggle checked={ds.show_extended_boilerplate} onChange={v => handleDelivery('show_extended_boilerplate', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Show Photos</span>
+          <span className="label">Show Photos</span>
           <Toggle checked={ds.show_photos} onChange={v => handleDelivery('show_photos', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Show Archives</span>
+          <span className="label">Show Archives</span>
           <Toggle checked={ds.show_archives} onChange={v => handleDelivery('show_archives', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Show Banner</span>
+          <span className="label">Show Banner</span>
           <Toggle checked={ds.show_banner} onChange={v => handleDelivery('show_banner', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Show Alerts</span>
+          <span className="label">Show Alerts</span>
           <Toggle checked={ds.show_alerts} onChange={v => handleDelivery('show_alerts', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Company Will Mail</span>
+          <span className="label">Company Will Mail</span>
           <Toggle checked={ds.company_will_mail} onChange={v => handleDelivery('company_will_mail', v)} />
         </div>
         <div className="delivery-row">
-          <span className="delivery-row__label">Delivery Method</span>
+          <span className="label">Delivery Method</span>
           <select className="field__select" style={{ width: 120 }} value={ds.delivery_method} onChange={e => handleDelivery('delivery_method', e.target.value)}>
             <option value="express">Express</option>
             <option value="standard">Standard</option>

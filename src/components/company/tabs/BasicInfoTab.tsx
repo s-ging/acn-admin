@@ -55,7 +55,7 @@ export default function BasicInfoTab() {
       <section className="field-section">
         <div className="field-row">
           <div className="logo-upload-zone">
-            <span className="logo-upload-zone__label">Company Logo</span>
+            <span className="label field">Article Page Logo</span>
             <div className="logo-upload-zone__box">
               <div className="logo-upload-zone__icon">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -64,22 +64,22 @@ export default function BasicInfoTab() {
                   <polyline points="21 15 16 10 5 21"/>
                 </svg>
               </div>
-              <p className="logo-upload-zone__text">
+              <p>
                 Drag and drop image files here or{' '}
                 <label className="logo-upload-zone__link">
                   upload files from your computer.
                   <input type="file" accept=".svg,.png,.jpg,.gif,.webp" hidden />
                 </label>
               </p>
-              <p className="logo-upload-zone__hint">
+              <p className="hint">
                 File formats accepted: .svg, .png, .jpg, .gif, .webp<br />
-                Maximum 3MB for all file types. Minimum 1000px width or less for non-SVG formats.
+                Maximum 3MB for all file types. Minimum 220px width or less for non-SVG formats.
               </p>
             </div>
           </div>
 
           <div className="logo-upload-zone">
-            <span className="logo-upload-zone__label">Company Logo</span>
+            <span className="label field">Top Page Logo</span>
             <div className="logo-upload-zone__box">
               <div className="logo-upload-zone__icon">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -88,16 +88,16 @@ export default function BasicInfoTab() {
                   <polyline points="21 15 16 10 5 21"/>
                 </svg>
               </div>
-              <p className="logo-upload-zone__text">
+              <p>
                 Drag and drop image files here or{' '}
                 <label className="logo-upload-zone__link">
                   upload files from your computer.
                   <input type="file" accept=".svg,.png,.jpg,.gif,.webp" hidden />
                 </label>
               </p>
-              <p className="logo-upload-zone__hint">
+              <p className="hint">
                 File formats accepted: .svg, .png, .jpg, .gif, .webp<br />
-                Maximum 3MB for all file types. Minimum 1000px width or less for non-SVG formats.
+                Maximum 3MB for all file types. Minimum 68px width or less for non-SVG formats.
               </p>
             </div>
           </div>
@@ -107,8 +107,8 @@ export default function BasicInfoTab() {
       <section className="field-section">
         <div className="about-block">
           <div className="about-block__header">
-            <span className="about-block__label">About Company</span>
-            <span className="about-block__subtitle">Shown at the bottom of every press release the company releases.</span>
+            <span className="label field">About Company</span>
+            <span className="hint">Shown at the bottom of every press release the company releases.</span>
           </div>
           <div className="about-block__body">
             {draft.about_html
@@ -122,8 +122,8 @@ export default function BasicInfoTab() {
       <section className="field-section">
         <div className="about-block">
           <div className="about-block__header">
-            <span className="about-block__label">Extended About Boilerplate</span>
-            <span className="about-block__subtitle">Shown when "Show Extended" is enabled. Appended after the main boilerplate on press release pages.</span>
+            <span className="label field">Extended About Boilerplate</span>
+            <span className="hint">Shown when "Show Extended" is enabled. Appended after the main boilerplate on press release pages.</span>
           </div>
           <div className="about-block__body">
             <span className="about-block__empty">No content yet.</span>

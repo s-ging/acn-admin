@@ -65,7 +65,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
         <Field label="Phone" value={form.phone} onChange={e => set('phone', e.target.value)} />
         <Field label="Fax" value={form.fax} onChange={e => set('fax', e.target.value)} />
         <div className="field">
-          <label className="field__label">Contact Type</label>
+          <label className="label">Contact Type</label>
           <select className="field__select" value={form.contact_type} onChange={e => set('contact_type', e.target.value as ContactType)}>
             <option value="freetext">Freetext</option>
             <option value="html">HTML</option>
@@ -73,7 +73,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
           </select>
         </div>
         <div className="field">
-          <label className="field__label">Email Format</label>
+          <label className="label">Email Format</label>
           <select className="field__select" value={form.email_format} onChange={e => set('email_format', e.target.value as EmailFormat)}>
             <option value="html">HTML</option>
             <option value="text">Text</option>
@@ -81,7 +81,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
         </div>
       </div>
       <div className="contact-form__notes">
-        <label className="field__label">Notes</label>
+        <label className="label">Notes</label>
         <textarea
           className="contact-form__textarea"
           placeholder="Internal notes about the contact..."
@@ -157,7 +157,7 @@ export default function ContactsTab() {
 
       {addingNew && (
         <div className="contact-card">
-          <div className="contact-card__new-label">Add new contact</div>
+          <div className="label">Add new contact</div>
           <ContactForm
             initial={EMPTY_FORM}
             onSave={handleAddNew}

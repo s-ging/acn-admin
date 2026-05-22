@@ -1,30 +1,31 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 
   --color-text-primary: #0a0a0a;
-  --color-text-secondary: #6b6b6b;
-  --color-text-tertiary: #a3a3a3;
-  --color-text-success: #16a34a;
-  --color-text-danger: #dc2626;
-  --color-text-warning: #d97706;
+  --color-text-secondary: #999999;
+  --color-text-tertiary: #B3B3B3;
+  --color-text-success: #2B900A;
+  --color-text-danger: #DF1B1B;
+  --color-text-warning: #A37301;
   --color-text-info: #2563eb;
 
   --color-background-primary: #ffffff;
   --color-background-secondary: #f7f7f7;
   --color-background-hover: #f0f0f0;
-  --color-background-success: #f0fdf4;
-  --color-background-danger: #fef2f2;
-  --color-background-warning: #fffbeb;
-  --color-background-info: #eff6ff;
+  --color-background-success: #E7FFEA;
+  --color-background-danger: #FFE7E7;
+  --color-background-warning: #FFF8E7;
+  --color-background-info: #F3F2F2;
 
   --color-border-primary: #0a0a0a;
   --color-border-secondary: #d4d4d4;
@@ -34,13 +35,23 @@
   --color-border-info: #93c5fd;
   --color-border-success: #86efac;
 
-  --border-radius-sm: 3px;
-  --border-radius-md: 6px;
-  --border-radius-lg: 10px;
+  --border-radius-sm: 1px;
+  --border-radius-md: 3px;
+  --border-radius-lg: 6px;
 
   --panel-width: 280px;
   --topbar-height: 48px;
   --tabbar-height: 40px;
+
+  --text-xs: 10px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-xxl: 32px;
+
+  --text-spc-pos: 0.3px;
+  --text-spc-neg: -0.3px;
 }
 
 html, body, #root {
@@ -54,6 +65,7 @@ body {
   color: var(--color-text-primary);
   background: var(--color-background-primary);
   -webkit-font-smoothing: antialiased;
+  letter-spacing: var(--text-spc-neg)
 }
 
 button {

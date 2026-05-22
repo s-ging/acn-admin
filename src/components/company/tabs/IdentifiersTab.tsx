@@ -12,7 +12,7 @@ function EmptyState({ label }: { label: string }) {
   return (
     <div className="empty-state">
       <div dangerouslySetInnerHTML={{ __html: EMPTY_SVG }} />
-      <span className="empty-state__label">No records to show. Add a {label}</span>
+      <span className="label">No records to show. Add a {label}</span>
     </div>
   )
 }
@@ -82,7 +82,7 @@ function CodeSearchPanel({ title, masterList, onSave, onCancel }: {
 
   return (
     <div className="contact-card" style={{ marginBottom: 16 }}>
-      <div className="contact-card__new-label">{title}</div>
+      <div className="label">{title}</div>
       <div className="wire-search">
         <div className="wire-search__input-row">
           <span className="wire-search__icon">○</span>
@@ -209,7 +209,7 @@ export default function IdentifiersTab() {
 
       {addingListing && (
         <div className="contact-card" style={{ marginBottom: 16 }}>
-          <div className="contact-card__new-label">Add new listing</div>
+          <div className="label">Add new listing</div>
           <ListingForm initial={EMPTY_LISTING} onSave={handleSaveListing} onCancel={() => setAddingListing(false)} />
         </div>
       )}
