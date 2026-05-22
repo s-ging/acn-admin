@@ -47,9 +47,10 @@ interface ContactFormProps {
   initial: ContactFormState
   onSave: (data: ContactFormState) => void
   onCancel: () => void
+  onDelete?: () => void
 }
 
-function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
+function ContactForm({ initial, onSave, onCancel, onDelete }: ContactFormProps) {
   const [form, setForm] = useState<ContactFormState>(initial)
   const set = (field: keyof ContactFormState, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }))
@@ -65,7 +66,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
         <Field label="Phone" value={form.phone} onChange={e => set('phone', e.target.value)} />
         <Field label="Fax" value={form.fax} onChange={e => set('fax', e.target.value)} />
         <div className="field">
-          <label className="label">Contact Type</label>
+          <label className="label field">Contact Type</label>
           <select className="field__select" value={form.contact_type} onChange={e => set('contact_type', e.target.value as ContactType)}>
             <option value="freetext">Freetext</option>
             <option value="html">HTML</option>
@@ -73,7 +74,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
           </select>
         </div>
         <div className="field">
-          <label className="label">Email Format</label>
+          <label className="label field">Email Format</label>
           <select className="field__select" value={form.email_format} onChange={e => set('email_format', e.target.value as EmailFormat)}>
             <option value="html">HTML</option>
             <option value="text">Text</option>
@@ -81,7 +82,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
         </div>
       </div>
       <div className="contact-form__notes">
-        <label className="label">Notes</label>
+        <label className="label field">Notes</label>
         <textarea
           className="contact-form__textarea"
           placeholder="Internal notes about the contact..."
@@ -92,6 +93,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
       <div className="contact-form__divider" />
       <div className="contact-form__actions">
         <Button variant="danger" size="sm" onClick={onCancel}>✕ Cancel entry</Button>
+        {onDelete && <Button variant="danger" size="sm" onClick={onDelete}>Delete entry</Button>}
         <Button variant="outline" size="sm" onClick={() => onSave(form)}>Save changes</Button>
       </div>
     </div>
@@ -115,6 +117,12 @@ const ContactsTab = memo(function ContactsTab() {
       c.id === id ? { ...c, ...data, position: data.position || null, email: data.email || null, phone: data.phone || null, fax: data.fax || null, notes: data.notes || null } : c
     )
     updateDraft({ contacts: updated })
+    setOpenId(null)
+  }, [draft, updateDraft])
+
+  const handleDelete = useCallback((id: number) => {
+    if (!draft) return
+    updateDraft({ contacts: draft.contacts.filter(c => c.id !== id) })
     setOpenId(null)
   }, [draft, updateDraft])
 
@@ -157,7 +165,7 @@ const ContactsTab = memo(function ContactsTab() {
 
       {addingNew && (
         <div className="contact-card">
-          <div className="label">Add new contact</div>
+          <div className="label form-title">Add new contact</div>
           <ContactForm
             initial={EMPTY_FORM}
             onSave={handleAddNew}
@@ -172,8 +180,8 @@ const ContactsTab = memo(function ContactsTab() {
             <div className="contact-card__row" onClick={() => toggleOpen(contact.id)}>
               <div className="contact-avatar">{getInitials(contact.name)}</div>
               <div className="contact-card__info">
-                <span className="contact-card__name">{contact.name}</span>
-                <span className="contact-card__meta">
+                <span >{contact.name}</span>
+                <span className="hint">
                   {[contact.position, contact.email].filter(Boolean).join(' • ')}
                 </span>
               </div>
@@ -190,6 +198,7 @@ const ContactsTab = memo(function ContactsTab() {
                 initial={contactToForm(contact)}
                 onSave={(data) => handleSaveExisting(contact.id, data)}
                 onCancel={() => setOpenId(null)}
+                onDelete={() => handleDelete(contact.id)}
               />
             )}
           </div>
