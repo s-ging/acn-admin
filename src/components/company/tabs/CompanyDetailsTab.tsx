@@ -38,7 +38,7 @@ function SectorSearchPanel({ onSave, onCancel }: {
 
   return (
     <div className="contact-card" style={{ marginBottom: 16 }}>
-      <div className="label">Add sector</div>
+      <div className="label form-title">Add sector</div>
       <div className="wire-search">
         <div className="wire-search__input-row">
           <span className="wire-search__icon">○</span>

@@ -248,7 +248,7 @@
 
 .field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(45%, (560px - 100%) * 999, 100%), 1fr));
   gap: 32px;
 }
 
@@ -613,7 +613,7 @@
 }
 
 .wire-search__info > :first-child {
-  width: 80px;
+  width: 150px;
   flex-shrink: 0;
 }
 
@@ -706,17 +706,8 @@
   color: var(--color-text-primary);
 }
 
-.field-row--2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
-}
-
-.field-row--3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 32px;
-}
+.field-row--2 { grid-template-columns: repeat(auto-fit, minmax(clamp(45%, (560px - 100%) * 999, 100%), 1fr)); }
+.field-row--3 { grid-template-columns: repeat(auto-fit, minmax(clamp(30%, (560px - 100%) * 999, 100%), 1fr)); }
 
 .sectors-grid {
   grid-template-columns: 160px 1fr 40px;
