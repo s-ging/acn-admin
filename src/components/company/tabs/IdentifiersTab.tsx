@@ -83,7 +83,7 @@ function CodeSearchPanel({ title, masterList, onSave, onCancel }: {
 
   return (
     <div className="contact-card" style={{ marginBottom: 16 }}>
-      <div className="label">{title}</div>
+      <div className="label form-title">{title}</div>
       <div className="wire-search">
         <div className="wire-search__input-row">
           <span className="wire-search__icon">○</span>
@@ -101,12 +101,9 @@ function CodeSearchPanel({ title, masterList, onSave, onCancel }: {
                 <span className="wire-search__name">{c.code}</span>
                 <span className="wire-search__meta">{c.name}</span>
               </div>
-              <button
-                className={`wire-search__add ${selected.has(c.id) ? 'wire-search__add--selected' : ''}`}
-                onClick={() => toggle(c.id)}
-              >
-                {selected.has(c.id) ? '✓' : '+ Add'}
-              </button>
+              <Button variant={selected.has(c.id) ? 'primary' : 'ghost'} size="sm" onClick={() => toggle(c.id)}>
+                {selected.has(c.id) ? '✓ Added' : '+ Add'}
+              </Button>
             </div>
           ))}
         </div>
@@ -210,7 +207,7 @@ const IdentifiersTab = memo(function IdentifiersTab() {
 
       {addingListing && (
         <div className="contact-card" style={{ marginBottom: 16 }}>
-          <div className="label">Add new listing</div>
+          <div className="label form-title">Add new listing</div>
           <ListingForm initial={EMPTY_LISTING} onSave={handleSaveListing} onCancel={() => setAddingListing(false)} />
         </div>
       )}

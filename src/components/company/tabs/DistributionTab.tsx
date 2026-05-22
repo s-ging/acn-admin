@@ -188,12 +188,9 @@ const DistributionTab = memo(function DistributionTab() {
                     <span>{w.name}</span>
                     <span className="hint">{w.email} • {w.country}</span>
                   </div>
-                  <button
-                    className={`wire-search__add ${selectedWires.has(w.id) ? 'wire-search__add--selected' : ''}`}
-                    onClick={() => toggleWireSelect(w.id)}
-                  >
-                    {selectedWires.has(w.id) ? '✓' : '+'}
-                  </button>
+                  <Button variant={selectedWires.has(w.id) ? 'primary' : 'ghost'} size="sm" onClick={() => toggleWireSelect(w.id)}>
+                    {selectedWires.has(w.id) ? '✓ Added' : '+ Add'}
+                  </Button>
                 </div>
               ))}
             </div>

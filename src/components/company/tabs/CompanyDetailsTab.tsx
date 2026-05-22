@@ -56,12 +56,9 @@ function SectorSearchPanel({ onSave, onCancel }: {
                 <span className="wire-search__name">{s.sector_name}</span>
                 <span className="wire-search__meta">{s.sector_type}</span>
               </div>
-              <button
-                className={`wire-search__add ${selected.has(s.id) ? 'wire-search__add--selected' : ''}`}
-                onClick={() => toggle(s.id)}
-              >
-                {selected.has(s.id) ? '✓' : '+ Add'}
-              </button>
+              <Button variant={selected.has(s.id) ? 'primary' : 'ghost'} size="sm" onClick={() => toggle(s.id)}>
+                {selected.has(s.id) ? '✓ Added' : '+ Add'}
+              </Button>
             </div>
           ))}
         </div>
