@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { memo, useState, useCallback } from 'react'
 import { useCompanyStore } from '../../../store/company.store'
 import { Button } from '../../ui/Button'
 import { Field } from '../../ui/Field'
@@ -119,7 +119,7 @@ function CodeSearchPanel({ title, masterList, onSave, onCancel }: {
   )
 }
 
-export default function IdentifiersTab() {
+const IdentifiersTab = memo(function IdentifiersTab() {
   const draft = useCompanyStore(s => s.draft)
   const updateDraft = useCompanyStore(s => s.updateDraft)
 
@@ -331,4 +331,6 @@ export default function IdentifiersTab() {
 
     </div>
   )
-}
+})
+
+export default IdentifiersTab

@@ -1,9 +1,12 @@
+import { memo } from 'react'
 import { useCompanyStore } from '../../../store/company.store'
+import { useDebouncedDraft } from '../../../hooks/useDebouncedDraft'
 import { Field } from '../../ui/Field'
+import { AboutBlock } from '../../ui/AboutBlock'
 
-export default function BasicInfoTab() {
+const BasicInfoTab = memo(function BasicInfoTab() {
   const draft = useCompanyStore(s => s.draft)
-  const updateDraft = useCompanyStore(s => s.updateDraft)
+  const update = useDebouncedDraft()
 
   if (!draft) return null
 
@@ -13,8 +16,8 @@ export default function BasicInfoTab() {
       <section className="field-section">
         <Field
           label="Company Name (EN)"
-          value={draft.name_en}
-          onChange={e => updateDraft({ name_en: e.target.value })}
+          defaultValue={draft.name_en}
+          onChange={e => update({ name_en: e.target.value })}
         />
       </section>
 
@@ -22,15 +25,15 @@ export default function BasicInfoTab() {
         <div className="field-row">
           <Field
             label="Company Name (ZH-HANS)"
-            value={draft.name_zh_hans ?? ''}
+            defaultValue={draft.name_zh_hans ?? ''}
             placeholder="Write the headline..."
-            onChange={e => updateDraft({ name_zh_hans: e.target.value || null })}
+            onChange={e => update({ name_zh_hans: e.target.value || null })}
           />
           <Field
             label="Company Name (ZH-HANT)"
-            value={draft.name_zh_hant ?? ''}
+            defaultValue={draft.name_zh_hant ?? ''}
             placeholder="Write the subheadline..."
-            onChange={e => updateDraft({ name_zh_hant: e.target.value || null })}
+            onChange={e => update({ name_zh_hant: e.target.value || null })}
           />
         </div>
       </section>
@@ -39,15 +42,15 @@ export default function BasicInfoTab() {
         <div className="field-row">
           <Field
             label="Company Name (JA)"
-            value={draft.name_ja ?? ''}
+            defaultValue={draft.name_ja ?? ''}
             placeholder="Write the headline..."
-            onChange={e => updateDraft({ name_ja: e.target.value || null })}
+            onChange={e => update({ name_ja: e.target.value || null })}
           />
           <Field
             label="Company Name (KO)"
-            value={draft.name_ko ?? ''}
+            defaultValue={draft.name_ko ?? ''}
             placeholder="Write the subheadline..."
-            onChange={e => updateDraft({ name_ko: e.target.value || null })}
+            onChange={e => update({ name_ko: e.target.value || null })}
           />
         </div>
       </section>
@@ -64,7 +67,7 @@ export default function BasicInfoTab() {
                   <polyline points="21 15 16 10 5 21"/>
                 </svg>
               </div>
-              <p>
+              <p className="logo-upload-zone__text">
                 Drag and drop image files here or{' '}
                 <label className="logo-upload-zone__link">
                   upload files from your computer.
@@ -73,7 +76,7 @@ export default function BasicInfoTab() {
               </p>
               <p className="hint">
                 File formats accepted: .svg, .png, .jpg, .gif, .webp<br />
-                Maximum 3MB for all file types. Minimum 220px width or less for non-SVG formats.
+                Maximum 3MB for all file types. Minimum 1000px width or less for non-SVG formats.
               </p>
             </div>
           </div>
@@ -88,7 +91,7 @@ export default function BasicInfoTab() {
                   <polyline points="21 15 16 10 5 21"/>
                 </svg>
               </div>
-              <p>
+              <p className="logo-upload-zone__text">
                 Drag and drop image files here or{' '}
                 <label className="logo-upload-zone__link">
                   upload files from your computer.
@@ -97,7 +100,7 @@ export default function BasicInfoTab() {
               </p>
               <p className="hint">
                 File formats accepted: .svg, .png, .jpg, .gif, .webp<br />
-                Maximum 3MB for all file types. Minimum 68px width or less for non-SVG formats.
+                Maximum 3MB for all file types. Minimum 1000px width or less for non-SVG formats.
               </p>
             </div>
           </div>
@@ -105,32 +108,25 @@ export default function BasicInfoTab() {
       </section>
 
       <section className="field-section">
-        <div className="about-block">
-          <div className="about-block__header">
-            <span className="label field">About Company</span>
-            <span className="hint">Shown at the bottom of every press release the company releases.</span>
-          </div>
-          <div className="about-block__body">
-            {draft.about_html
-              ? <div dangerouslySetInnerHTML={{ __html: draft.about_html }} />
-              : <span className="about-block__empty">No content yet.</span>
-            }
-          </div>
-        </div>
+        <AboutBlock
+          label="About Company"
+          subtitle="Shown at the bottom of every press release the company releases."
+          html={draft.about_html}
+          onChange={html => update({ about_html: html })}
+        />
       </section>
 
       <section className="field-section">
-        <div className="about-block">
-          <div className="about-block__header">
-            <span className="label field">Extended About Boilerplate</span>
-            <span className="hint">Shown when "Show Extended" is enabled. Appended after the main boilerplate on press release pages.</span>
-          </div>
-          <div className="about-block__body">
-            <span className="about-block__empty">No content yet.</span>
-          </div>
-        </div>
+        <AboutBlock
+          label="Extended About Boilerplate"
+          subtitle={'Shown when "Show Extended" is enabled. Appended after the main boilerplate on press release pages.'}
+          html={null}
+          onChange={html => update({ about_html: html })}
+        />
       </section>
 
     </div>
   )
-}
+})
+
+export default BasicInfoTab

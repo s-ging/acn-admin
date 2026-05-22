@@ -1,7 +1,7 @@
 .label {
   font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: var(--text-spc-pos);
+  letter-spacing: 0px;
   color: var(--color-text-primary);
 }
 
@@ -282,14 +282,16 @@
 
 .about-block__header {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 2px;
 }
 
 .about-block__body {
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-md);
-  padding: 16px;
+  padding: 8px 12px;
   font-size: 14px;
   line-height: 1.7;
   color: var(--color-text-primary);
@@ -873,5 +875,91 @@
 .editor-company-id {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+/* RichTextEditor */
+.rte {
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+}
+
+.rte__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+}
+
+.rte__btn {
+  background: none;
+  border: none;
+  padding: 4px 7px;
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  line-height: 1;
+}
+
+.rte__btn:hover {
+  background: var(--color-background-hover);
+  color: var(--color-text-primary);
+}
+
+.rte__btn--active {
+  background: var(--color-background-hover);
+  color: var(--color-text-primary);
+}
+
+.rte__btn--italic { font-style: italic; }
+.rte__btn--underline { text-decoration: underline; }
+
+.rte__divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border-secondary);
+  margin: 0 4px;
+}
+
+.rte__content {
+  padding: 8px 12px;
+  min-height: 120px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.rte__content .ProseMirror {
+  outline: none;
+  min-height: 120px;
+}
+
+.rte__content .ProseMirror p { margin-bottom: 8px; }
+.rte__content .ProseMirror ul,
+.rte__content .ProseMirror ol { padding-left: 20px; margin-bottom: 8px; }
+.rte__content .ProseMirror a { color: var(--color-text-info); text-decoration: underline; }
+
+.rte-loading {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+/* AboutBlock edit mode */
+.about-block__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.about-block__actions {
+  display: flex;
   gap: 8px;
 }

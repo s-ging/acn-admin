@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { memo, useState, useCallback } from 'react'
 import { useCompanyStore } from '../../../store/company.store'
 import { Button } from '../../ui/Button'
 import { Field } from '../../ui/Field'
@@ -76,7 +76,7 @@ function RSSForm({ initial, onSave, onCancel }: {
   )
 }
 
-export default function DistributionTab() {
+const DistributionTab = memo(function DistributionTab() {
   const draft = useCompanyStore(s => s.draft)
   const updateDraft = useCompanyStore(s => s.updateDraft)
 
@@ -321,4 +321,6 @@ export default function DistributionTab() {
 
     </div>
   )
-}
+})
+
+export default DistributionTab

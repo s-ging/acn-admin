@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { memo, useState, useCallback } from 'react'
 import { useCompanyStore } from '../../../store/company.store'
 import { Button } from '../../ui/Button'
 import { Field } from '../../ui/Field'
@@ -98,7 +98,7 @@ function ContactForm({ initial, onSave, onCancel }: ContactFormProps) {
   )
 }
 
-export default function ContactsTab() {
+const ContactsTab = memo(function ContactsTab() {
   const draft = useCompanyStore(s => s.draft)
   const updateDraft = useCompanyStore(s => s.updateDraft)
 
@@ -177,7 +177,13 @@ export default function ContactsTab() {
                   {[contact.position, contact.email].filter(Boolean).join(' • ')}
                 </span>
               </div>
-              <span className="contact-card__chevron">{openId === contact.id ? '∧' : '∨'}</span>
+              <svg
+                className="contact-card__chevron"
+                width="24" height="24" viewBox="0 0 24 24" fill="none"
+                style={{ transform: openId === contact.id ? 'rotate(180deg)' : undefined }}
+              >
+                <path d="M6 9L12 15L18 9" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
             {openId === contact.id && (
               <ContactForm
@@ -191,4 +197,6 @@ export default function ContactsTab() {
       </div>
     </div>
   )
-}
+})
+
+export default ContactsTab
