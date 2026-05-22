@@ -3,6 +3,7 @@ import { useCompanyStore } from '../../../store/company.store'
 import { Button } from '../../ui/Button'
 import { Field } from '../../ui/Field'
 import { TrashIcon } from '../../ui/TrashIcon'
+import { PencilIcon } from '../../ui/PencilIcon'
 import type { WireService, RSSFeed, DeliverySettings } from '../../../types/company.types'
 
 const MOCK_WIRE_SEARCH: WireService[] = [
@@ -169,7 +170,7 @@ const DistributionTab = memo(function DistributionTab() {
 
       {addingWire && (
         <div className="contact-card" style={{ marginBottom: 16 }}>
-          <div className="label">Add new wire service</div>
+          <div className="label form-title">Add new wire service</div>
           <div className="wire-search">
             <div className="wire-search__input-row">
               <span className="wire-search__icon">○</span>
@@ -184,8 +185,8 @@ const DistributionTab = memo(function DistributionTab() {
               {filteredWire.map(w => (
                 <div key={w.id} className="wire-search__row">
                   <div className="wire-search__info">
-                    <span className="wire-search__name">{w.name}</span>
-                    <span className="wire-search__meta">{w.email} • {w.country}</span>
+                    <span>{w.name}</span>
+                    <span className="hint">{w.email} • {w.country}</span>
                   </div>
                   <button
                     className={`wire-search__add ${selectedWires.has(w.id) ? 'wire-search__add--selected' : ''}`}
@@ -233,7 +234,7 @@ const DistributionTab = memo(function DistributionTab() {
 
       {addingFeed && (
         <div className="contact-card" style={{ marginBottom: 16 }}>
-          <div className="label">Add new feed</div>
+          <div className="label form-title">Add new feed</div>
           <RSSForm initial={EMPTY_RSS} onSave={handleSaveFeed} onCancel={() => setAddingFeed(false)} />
         </div>
       )}
@@ -250,7 +251,7 @@ const DistributionTab = memo(function DistributionTab() {
             <div key={f.id} className="data-table__row">
               <div>
                 <div>{f.feed_name}</div>
-                {f.sector_name && <div className="data-table__sub">Sector: {f.sector_name}</div>}
+                {f.sector_name && <div className="hint">Sector: {f.sector_name}</div>}
               </div>
               <span className="data-table__secondary">{f.url}</span>
               <span className="data-table__status">
@@ -259,7 +260,7 @@ const DistributionTab = memo(function DistributionTab() {
               </span>
               <div className="data-table__row-actions">
                 <button className="data-table__delete" onClick={() => handleDeleteFeed(f.id)}><TrashIcon /></button>
-                <button className="data-table__edit" onClick={() => { setEditingFeedId(f.id); setAddingFeed(false) }}>✎</button>
+                <button className="data-table__edit" onClick={() => { setEditingFeedId(f.id); setAddingFeed(false) }}><PencilIcon /></button>
               </div>
             </div>
             {editingFeedId === f.id && (
@@ -282,35 +283,35 @@ const DistributionTab = memo(function DistributionTab() {
 
       <div className="delivery-grid">
         <div className="delivery-row">
-          <span className="label">Allow Access</span>
+          <span className="label field">Allow Access</span>
           <Toggle checked={ds.allow_access} onChange={v => handleDelivery('allow_access', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Show Extended Boilerplate</span>
+          <span className="label field">Show Extended Boilerplate</span>
           <Toggle checked={ds.show_extended_boilerplate} onChange={v => handleDelivery('show_extended_boilerplate', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Show Photos</span>
+          <span className="label field">Show Photos</span>
           <Toggle checked={ds.show_photos} onChange={v => handleDelivery('show_photos', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Show Archives</span>
+          <span className="label field">Show Archives</span>
           <Toggle checked={ds.show_archives} onChange={v => handleDelivery('show_archives', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Show Banner</span>
+          <span className="label field">Show Banner</span>
           <Toggle checked={ds.show_banner} onChange={v => handleDelivery('show_banner', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Show Alerts</span>
+          <span className="label field">Show Alerts</span>
           <Toggle checked={ds.show_alerts} onChange={v => handleDelivery('show_alerts', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Company Will Mail</span>
+          <span className="label field">Company Will Mail</span>
           <Toggle checked={ds.company_will_mail} onChange={v => handleDelivery('company_will_mail', v)} />
         </div>
         <div className="delivery-row">
-          <span className="label">Delivery Method</span>
+          <span className="label field">Delivery Method</span>
           <select className="field__select" style={{ width: 120 }} value={ds.delivery_method} onChange={e => handleDelivery('delivery_method', e.target.value)}>
             <option value="express">Express</option>
             <option value="standard">Standard</option>

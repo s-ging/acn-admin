@@ -3,6 +3,7 @@ import { useCompanyStore } from '../../../store/company.store'
 import { Button } from '../../ui/Button'
 import { Field } from '../../ui/Field'
 import { TrashIcon } from '../../ui/TrashIcon'
+import { PencilIcon } from '../../ui/PencilIcon'
 import { MOCK_REUTERS_CODES, MOCK_BLOOMBERG_CODES } from '../../../lib/mock'
 import type { ExchangeListing, CompanyWireCode } from '../../../types/company.types'
 
@@ -238,7 +239,7 @@ const IdentifiersTab = memo(function IdentifiersTab() {
                 <span>{e.cusip ?? '–'}</span>
                 <div className="data-table__row-actions">
                   <button className="data-table__delete" onClick={() => handleDeleteListing(e.id)}><TrashIcon /></button>
-                  <button className="data-table__edit" onClick={() => { setEditingListingId(e.id); setAddingListing(false) }}>✎</button>
+                  <button className="data-table__edit" onClick={() => { setEditingListingId(e.id); setAddingListing(false) }}><PencilIcon /></button>
                 </div>
               </div>
               {editingListingId === e.id && (

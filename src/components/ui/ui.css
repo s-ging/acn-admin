@@ -471,20 +471,28 @@
 
 .data-table__header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 40px;
+  grid-template-columns: 1fr 1fr 1fr 56px;
   padding: 8px 0;
   border-bottom: 1px solid var(--color-border-tertiary);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .data-table__row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 40px;
-  padding: 12px 0;
+  grid-template-columns: 1fr 1fr 1fr 56px;
+  padding: 4px 0;
   border-bottom: 1px solid var(--color-border-tertiary);
   font-size: 13px;
   align-items: center;
+}
+
+.data-table__header > *,
+.data-table__row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .data-table__secondary {
@@ -508,6 +516,8 @@
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  width: 56px;
+  overflow: visible;
 }
 
 .data-table__delete {
@@ -592,7 +602,6 @@
 .wire-search__info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .wire-search__name {
