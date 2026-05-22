@@ -1,0 +1,76 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  --color-text-primary: #0a0a0a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-tertiary: #a3a3a3;
+  --color-text-success: #16a34a;
+  --color-text-danger: #dc2626;
+  --color-text-warning: #d97706;
+  --color-text-info: #2563eb;
+
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f7f7f7;
+  --color-background-hover: #f0f0f0;
+  --color-background-success: #f0fdf4;
+  --color-background-danger: #fef2f2;
+  --color-background-warning: #fffbeb;
+  --color-background-info: #eff6ff;
+
+  --color-border-primary: #0a0a0a;
+  --color-border-secondary: #d4d4d4;
+  --color-border-tertiary: #e5e5e5;
+  --color-border-danger: #fca5a5;
+  --color-border-warning: #fcd34d;
+  --color-border-info: #93c5fd;
+  --color-border-success: #86efac;
+
+  --border-radius-sm: 3px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 10px;
+
+  --panel-width: 280px;
+  --topbar-height: 48px;
+  --tabbar-height: 40px;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-text-primary);
+  background: var(--color-background-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1{
+  font-size: 20px;
+  font-weight: 400; 
+}
