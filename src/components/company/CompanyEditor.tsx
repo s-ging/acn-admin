@@ -1,16 +1,17 @@
 import { useEffect, useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { useUIStore } from '../../store/ui.store'
 import { useToastStore } from '../../store/toast.store'
 import { computeDiff } from '../../lib/companies/diff'
 import { TabBar } from '../ui/TabBar'
+import { Topbar } from '../ui/Topbar'
 import { MetadataPanel } from './panels/MetadataPanel'
 import { Button } from '../ui/Button'
 import { CommitModal } from './modals/CommitModal'
 import { JSONExportModal } from './modals/JSONExportModal'
 import { JSONImportModal } from './modals/JSONImportModal'
 import { AnnualReportModal } from './modals/AnnualReportModal'
-import { MOCK_COMPANY } from '../../lib/mock'
 import type { Tab } from '../../types/company.types'
 import BasicInfoTab      from './tabs/BasicInfoTab'
 import ContactsTab       from './tabs/ContactsTab'
@@ -35,14 +36,11 @@ const TAB_COMPONENTS = {
 }
 
 export default function CompanyEditor() {
+  const navigate = useNavigate()
   const { activeTab, setTab, activeModal, openModal } = useUIStore()
-  const { original, draft, resetCount, setOriginal, computeChanges } = useCompanyStore()
+  const { original, draft, resetCount, computeChanges } = useCompanyStore()
   const addToast = useToastStore(s => s.addToast)
   const [modalMode, setModalMode] = useState<'commit' | 'discard'>('commit')
-
-  useEffect(() => {
-    setOriginal(MOCK_COMPANY)
-  }, [setOriginal])
 
   const handleSave = useCallback(() => {
     setModalMode('commit')
@@ -68,26 +66,37 @@ export default function CompanyEditor() {
   return (
     <div className="company-editor">
 
-      <div className="editor-topbar">
-        <div className="editor-breadcrumb">
-          Companies &rsaquo; <strong>{draft.name_en}</strong>
-        </div>
-        <div className="editor-topbar-right">
-          <Button variant="ghost" size="sm" onClick={() => {
-            if (!original || !draft || computeDiff(original, draft).length === 0) {
-              addToast('No changes to discard', 'info')
-              return
-            }
-            setModalMode('discard')
-            openModal('commit')
-          }}>
-            Discard
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleSave}>
-            Save changes
-          </Button>
-        </div>
-      </div>
+      <Topbar
+        breadcrumb={
+          <>
+            <span
+              style={{ cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              onClick={() => navigate('/companies')}
+            >
+              Companies
+            </span>
+            {' › '}
+            <span style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>{draft?.name_en || 'Untitled'}</span>
+          </>
+        }
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => {
+              if (!original || !draft || computeDiff(original, draft).length === 0) {
+                addToast('No changes to discard', 'info')
+                return
+              }
+              setModalMode('discard')
+              openModal('commit')
+            }}>
+              Discard
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleSave}>
+              Save changes
+            </Button>
+          </>
+        }
+      />
 
       <div className="editor-body">
         <div className="editor-main">

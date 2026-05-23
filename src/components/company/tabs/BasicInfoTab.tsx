@@ -23,7 +23,7 @@ const BasicInfoTab = memo(function BasicInfoTab() {
       </section>
 
       <section className="field-section">
-        <div className="field-row">
+        <div className="field-row field-row--2">
           <Field
             label="Company Name (ZH-HANS)"
             defaultValue={draft.name_zh_hans ?? ''}
@@ -40,7 +40,7 @@ const BasicInfoTab = memo(function BasicInfoTab() {
       </section>
 
       <section className="field-section">
-        <div className="field-row">
+        <div className="field-row field-row--2">
           <Field
             label="Company Name (JA)"
             defaultValue={draft.name_ja ?? ''}
@@ -57,7 +57,7 @@ const BasicInfoTab = memo(function BasicInfoTab() {
       </section>
 
       <section className="field-section">
-        <div className="field-row">
+        <div className="field-row field-row--2">
           <LogoUpload
             companyId={draft.id}
             field="logo_article_url"
