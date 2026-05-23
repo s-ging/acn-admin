@@ -31,7 +31,6 @@ export const JSONExportDialog = memo(({ draft, onClose }: JSONExportDialogProps)
     a.download = filename
     a.click()
     URL.revokeObjectURL(url)
-    localStorage.setItem(`acn_company_export_${draft.id}`, json)
   }, [draft, json])
 
   const handleCopy = useCallback(async () => {

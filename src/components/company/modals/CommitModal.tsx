@@ -48,7 +48,19 @@ export const CommitModal = memo(({ mode = 'commit' }: CommitModalProps) => {
   }, [closeModal, reverted])
 
   const handleCommit = useCallback(() => {
-    if (draft) localStorage.setItem(`acn_company_${draft.id}`, JSON.stringify(draft))
+    if (draft) {
+      const urlVal = draft.annual_report_url
+      console.log('[CommitModal] handleCommit — annual_report_url:', urlVal ? `${urlVal.slice(0, 80)}… (len=${urlVal.length})` : urlVal)
+      const toSave = urlVal?.startsWith('data:')
+        ? { ...draft, annual_report_url: null }
+        : draft
+      try {
+        localStorage.setItem(`acn_company_${draft.id}`, JSON.stringify(toSave))
+        console.log('[CommitModal] localStorage.setItem succeeded')
+      } catch (err) {
+        console.error('[CommitModal] localStorage.setItem FAILED:', err)
+      }
+    }
     commitSuccess()
     closeModal()
   }, [draft, commitSuccess, closeModal])

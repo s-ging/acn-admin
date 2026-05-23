@@ -1,9 +1,9 @@
-import { memo, useState, useCallback, useRef, useEffect } from 'react'
+import { memo, useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '../../ui/Button'
 import { DropZone } from '../../ui/DropZone'
 import { UploadIcon } from '../../ui/UploadIcon'
 
-type ReportState = 'upload' | 'review' | 'success'
+type ReportState = 'upload' | 'review'
 
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -18,74 +18,59 @@ export interface AnnualReportDialogProps {
 export const AnnualReportDialog = memo(({ onClose, onApply }: AnnualReportDialogProps) => {
   const [reportState, setReportState] = useState<ReportState>('upload')
   const [filename, setFilename]       = useState('')
-  const [dataUrl, setDataUrl]         = useState('')
   const [error, setError]             = useState<string | null>(null)
   const [reportName, setReportName]   = useState('')
   const [reportDate, setReportDate]   = useState('')
   const [reportSize, setReportSize]   = useState('')
-
-  const readerRef     = useRef<FileReader | null>(null)
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => {
-      readerRef.current?.abort()
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
-    }
-  }, [])
-
-  const handleClose = useCallback(() => {
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
-    onClose()
-  }, [onClose])
+  const [fileUrl, setFileUrl]         = useState('')
+  const prevUrlRef = useRef<string>('')
 
   useEffect(() => {
-    if (reportState === 'success') return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose()
+      if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [reportState, handleClose])
+  }, [onClose])
 
   const handleFile = useCallback((file: File) => {
+    console.log('[AnnualReport] handleFile called', { name: file.name, size: file.size, type: file.type })
     setError(null)
     const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
     if (ext !== '.pdf') {
+      console.warn('[AnnualReport] rejected — not a PDF:', ext)
       setError('Only .pdf files are accepted.')
       return
     }
+    if (prevUrlRef.current) {
+      URL.revokeObjectURL(prevUrlRef.current)
+    }
+    const url = URL.createObjectURL(file)
+    prevUrlRef.current = url
+    console.log('[AnnualReport] created object URL:', url)
+    setFileUrl(url)
     setFilename(file.name)
     setReportName(file.name)
     setReportSize(formatSize(file.size))
     setReportDate('')
-    const reader = new FileReader()
-    readerRef.current = reader
-    reader.onload = (e) => {
-      const result = e.target?.result
-      if (typeof result !== 'string') return
-      setDataUrl(result)
-      setReportState('review')
-    }
-    reader.readAsDataURL(file)
+    setReportState('review')
+    console.log('[AnnualReport] state → review', { url, name: file.name, size: formatSize(file.size) })
   }, [])
 
   const handleApply = useCallback(() => {
-    onApply(dataUrl, reportName, reportDate, reportSize)
-    setReportState('success')
-    closeTimerRef.current = setTimeout(() => onClose(), 2000)
-  }, [dataUrl, reportName, reportDate, reportSize, onApply, onClose])
+    console.log('[AnnualReport] handleApply called', { fileUrl, reportName, reportDate, reportSize })
+    onApply(fileUrl, reportName, reportDate, reportSize)
+    onClose()
+  }, [fileUrl, reportName, reportDate, reportSize, onApply, onClose])
 
   return (
     <div className="commit-dialog annual-report-dialog" role="dialog" aria-modal="true">
       <div className="commit-header">
         <div className="flex flex-col gap-1">
           <div className="label field">Upload Annual Report</div>
-          {reportState !== 'success' && (
-            <div className="hint">Attach a PDF. The name, date, and size will update on the company record.</div>
-          )}
+          <div className="hint">Attach a PDF. The name, date, and size will update on the company record.</div>
         </div>
-        <button className="commit-close" onClick={handleClose} aria-label="Close">×</button>
+        <button className="commit-close" onClick={onClose} aria-label="Close">×</button>
       </div>
 
       {reportState === 'upload' && (
@@ -104,7 +89,7 @@ export const AnnualReportDialog = memo(({ onClose, onApply }: AnnualReportDialog
             {error && <div className="json-import__error">⚠ {error}</div>}
           </div>
           <div className="json-export__footer">
-            <Button variant="outline" size="sm" onClick={handleClose}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           </div>
         </>
       )}
@@ -150,19 +135,10 @@ export const AnnualReportDialog = memo(({ onClose, onApply }: AnnualReportDialog
             <div className="hint">⚠ This will update the annual report on the company record.</div>
           </div>
           <div className="json-export__footer">
-            <Button variant="outline" size="sm" onClick={handleClose}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={handleApply}>Apply to record →</Button>
           </div>
         </>
-      )}
-
-      {reportState === 'success' && (
-        <div className="json-import__success">
-          <div className="json-import__success-icon">✓</div>
-          <div className="label field">Report attached.</div>
-          <div className="hint">The annual report fields have been updated.</div>
-          <div className="hint">Closing in a moment...</div>
-        </div>
       )}
     </div>
   )

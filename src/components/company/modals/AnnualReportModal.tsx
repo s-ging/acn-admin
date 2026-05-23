@@ -8,12 +8,14 @@ export const AnnualReportModal = memo(() => {
   const closeModal  = useUIStore(s => s.closeModal)
 
   const handleApply = useCallback((url: string, name: string, date: string, size: string) => {
+    console.log('[AnnualReportModal] handleApply received', { url, name, date, size })
     updateDraft({
-      annual_report_url:  url,
+      annual_report_url:  url || null,
       annual_report_name: name,
       annual_report_date: date,
       annual_report_size: size,
     })
+    console.log('[AnnualReportModal] updateDraft called')
   }, [updateDraft])
 
   return (

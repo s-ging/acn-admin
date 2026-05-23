@@ -7,6 +7,7 @@ interface CompanyStore {
   changes: Change[]
   resetCount: number
   setOriginal: (company: CompanyFull) => void
+  setDraft: (company: CompanyFull) => void
   updateDraft: (patch: Partial<CompanyFull>) => void
   computeChanges: () => void
   resetDraft: () => void
@@ -21,6 +22,10 @@ export const useCompanyStore = create<CompanyStore>((set, get) => ({
 
   setOriginal: (company) => set({
     original: company,
+    draft: structuredClone(company)
+  }),
+
+  setDraft: (company) => set({
     draft: structuredClone(company)
   }),
 

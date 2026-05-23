@@ -14,6 +14,9 @@ export default function CompanyEditorPage() {
     if (!stored) { navigate('/companies'); return }
     try {
       const company = JSON.parse(stored) as CompanyFull
+      if (company.annual_report_url?.startsWith('data:')) {
+        company.annual_report_url = null
+      }
       setOriginal(company)
     } catch {
       navigate('/companies')
