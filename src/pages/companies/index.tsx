@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
@@ -246,9 +246,16 @@ export default function CompaniesListPage() {
           </>
         }
         actions={
-          <Button variant="primary" size="sm" onClick={handleNewCompany}>
-            + New company
-          </Button>
+          <>
+            {import.meta.env.DEV && (
+              <Link to="/dev" style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textDecoration: 'none', letterSpacing: '0.05em' }}>
+                DEV
+              </Link>
+            )}
+            <Button variant="primary" size="sm" onClick={handleNewCompany}>
+              + New company
+            </Button>
+          </>
         }
       />
 

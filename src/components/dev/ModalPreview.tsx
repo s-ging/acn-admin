@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { CommitDialog } from '../company/modals/CommitDialog'
 import { JSONExportDialog } from '../company/modals/JSONExportDialog'
@@ -59,7 +60,7 @@ export default function ModalPreview() {
       <div className="modal-preview__header">
         <span className="modal-preview__tag">DEV</span>
         Modal Preview
-        <a href="#" className="modal-preview__hint">← back to editor</a>
+        <Link to="/companies" className="modal-preview__hint">← back to editor</Link>
       </div>
 
       <div className="modal-preview__grid">
