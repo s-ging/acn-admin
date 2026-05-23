@@ -34,19 +34,37 @@ function formatValue(val: unknown): string {
   return String(val)
 }
 
-const EditRow = memo(({ change }: { change: FieldChange }) => (
-  <div className="commit-row commit-row--edit">
-    <div className="commit-row__icon"><PencilIcon /></div>
-    <div className="commit-row__body">
-      <div className="label field">{change.label}</div>
-      <div className="commit-row__diff">
-        <span className="commit-row__old">{formatValue(change.old_value)}</span>
-        <span className="commit-row__arrow">→</span>
-        <span className="commit-row__new">{formatValue(change.new_value)}</span>
+const FILE_FIELDS = new Set([
+  'logo_article_url',
+  'logo_top_url',
+  'annual_report_url',
+  'annual_report_name',
+  'annual_report_date',
+  'annual_report_size',
+])
+
+const EditRow = memo(({ change }: { change: FieldChange }) => {
+  const isFileField = FILE_FIELDS.has(String(change.field))
+  return (
+    <div className="commit-row commit-row--edit">
+      <div className="commit-row__icon"><PencilIcon /></div>
+      <div className="commit-row__body">
+        <div className="label field">{change.label}</div>
+        {isFileField ? (
+          <div className="commit-row__diff">
+            <span className="commit-row__new">Updated</span>
+          </div>
+        ) : (
+          <div className="commit-row__diff">
+            <span className="commit-row__old">{formatValue(change.old_value)}</span>
+            <span className="commit-row__arrow">→</span>
+            <span className="commit-row__new">{formatValue(change.new_value)}</span>
+          </div>
+        )}
       </div>
     </div>
-  </div>
-))
+  )
+})
 EditRow.displayName = 'EditRow'
 
 const RecordRow = memo(({ change }: { change: RecordChange }) => {

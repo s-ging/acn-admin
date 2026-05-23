@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+// import { useBlocker } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { useUIStore } from '../../store/ui.store'
 import { useToastStore } from '../../store/toast.store'
@@ -12,6 +13,7 @@ import { CommitModal } from './modals/CommitModal'
 import { JSONExportModal } from './modals/JSONExportModal'
 import { JSONImportModal } from './modals/JSONImportModal'
 import { AnnualReportModal } from './modals/AnnualReportModal'
+import { UnsavedChangesModal } from './modals/UnsavedChangesModal'
 import type { Tab } from '../../types/company.types'
 import BasicInfoTab      from './tabs/BasicInfoTab'
 import ContactsTab       from './tabs/ContactsTab'
@@ -38,9 +40,80 @@ const TAB_COMPONENTS = {
 export default function CompanyEditor() {
   const navigate = useNavigate()
   const { activeTab, setTab, activeModal, openModal } = useUIStore()
-  const { original, draft, resetCount, computeChanges } = useCompanyStore()
+  const { original, draft, resetCount, computeChanges, resetDraft } = useCompanyStore()
   const addToast = useToastStore(s => s.addToast)
   const [modalMode, setModalMode] = useState<'commit' | 'discard'>('commit')
+
+/*  const blocker = useBlocker(() => {
+    if (!original || !draft) return false
+    return JSON.stringify(original) !== JSON.stringify(draft)
+  })
+*/
+
+/*
+  const handleDiscard = useCallback(() => {
+    resetDraft()
+    blocker.proceed?.()
+  }, [resetDraft, blocker])
+
+  const handleStay = useCallback(() => {
+    blocker.reset?.()
+  }, [blocker])
+*/
+
+// ===== CUSTOM BLOCKER HOOK - Temporary replacement until Data Router migration =====
+function useNavigationBlocker(shouldBlock: boolean) {
+  const navigate = useNavigate();
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  
+  const block = useCallback((destination: string) => {
+    if (shouldBlock) {
+      setPendingNavigation(destination);
+      setShowModal(true);
+      return true;
+    }
+    return false;
+  }, [shouldBlock]);
+  
+  const proceed = useCallback(() => {
+    if (pendingNavigation) {
+      setShowModal(false);
+      navigate(pendingNavigation);
+      setPendingNavigation(null);
+    }
+  }, [pendingNavigation, navigate]);
+  
+  const reset = useCallback(() => {
+    setShowModal(false);
+    setPendingNavigation(null);
+  }, []);
+  
+  return { 
+    block, 
+    proceed, 
+    reset, 
+    state: showModal ? 'blocked' : 'unblocked' 
+  };
+}
+// ===== END CUSTOM HOOK =====
+
+// hasUnsavedChanges
+const hasUnsavedChanges = !!(original && draft && 
+  JSON.stringify(original) !== JSON.stringify(draft));
+
+const blocker = useNavigationBlocker(hasUnsavedChanges);
+
+// handleDiscard
+const handleDiscard = useCallback(() => {
+  resetDraft()
+  blocker.proceed()
+}, [resetDraft, blocker])
+
+const handleStay = useCallback(() => {
+  blocker.reset()
+}, [blocker])
+
 
   const handleSave = useCallback(() => {
     setModalMode('commit')
@@ -71,7 +144,22 @@ export default function CompanyEditor() {
           <>
             <span
               style={{ cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-              onClick={() => navigate('/companies')}
+              onClick={() => {
+                if (!blocker.block('/companies')) {
+                  navigate('/companies');
+                }
+              }}
+            >
+              Home
+            </span>
+            {' › '}
+            <span
+              style={{ cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              onClick={() => {
+                if (!blocker.block('/companies')) {
+                  navigate('/companies');
+                }
+              }}
             >
               Companies
             </span>
@@ -119,6 +207,13 @@ export default function CompanyEditor() {
       {activeModal === 'json-export' && <JSONExportModal />}
       {activeModal === 'json-import'    && <JSONImportModal />}
       {activeModal === 'annual-report' && <AnnualReportModal />}
+      {blocker.state === 'blocked' && (
+        <UnsavedChangesModal
+          companyName={original?.name_en || 'this company'}
+          onDiscard={handleDiscard}
+          onStay={handleStay}
+        />
+      )}
     </div>
   )
 }

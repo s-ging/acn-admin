@@ -26,6 +26,17 @@ interface ColumnVisibility {
   lastModified: boolean
 }
 
+function generateCompanyId(): number {
+  const existingIds = Object.keys(localStorage)
+    .filter(k => k.startsWith('acn_company_'))
+    .map(k => {
+      const parsed = parseInt(k.replace('acn_company_', ''), 10)
+      return isNaN(parsed) ? 0 : parsed
+    })
+  const max = existingIds.length > 0 ? Math.max(...existingIds) : 999
+  return max + 1
+}
+
 function getInitials(name: string): string {
   return name
     .split(/\s+/)
@@ -68,17 +79,12 @@ export default function CompaniesListPage() {
     lastModified: true,
   })
   const [colDropdownOpen, setColDropdownOpen] = useState(false)
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const colDropdownRef = useRef<HTMLDivElement>(null)
-  const statusDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (colDropdownRef.current && !colDropdownRef.current.contains(e.target as Node)) {
         setColDropdownOpen(false)
-      }
-      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
-        setStatusDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -112,7 +118,7 @@ export default function CompaniesListPage() {
   }
 
   const handleNewCompany = () => {
-    const id = Date.now()
+    const id = generateCompanyId()
     const now = new Date().toISOString()
     const company: CompanyFull = {
       id,
@@ -247,39 +253,29 @@ export default function CompaniesListPage() {
       />
 
       <div className="companies-toolbar">
-        <div className="field__input">
-          <input
-            type="text"
-            placeholder="Search companies..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
+        <input
+          className="field__input"
+          type="text"
+          placeholder="Search companies..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: '150px' }}
+        />
 
-        <div style={{ position: 'relative' }} ref={statusDropdownRef}>
-          <Button variant="outline" size="sm" onClick={() => setStatusDropdownOpen(o => !o)}>
-            {STATUS_LABELS[statusFilter]} ▾
-          </Button>
-          {statusDropdownOpen && (
-            <div className="col-dropdown">
-              {(['all', 'active', 'draft', 'inactive'] as StatusFilter[]).map(s => (
-                <div
-                  key={s}
-                  className="col-option"
-                  style={{ fontWeight: statusFilter === s ? 500 : undefined }}
-                  onClick={() => { setStatusFilter(s); setStatusDropdownOpen(false) }}
-                >
-                  {STATUS_LABELS[s]}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <select
+          className="toolbar-select"
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as StatusFilter)}
+        >
+          {(['all', 'active', 'draft', 'inactive'] as StatusFilter[]).map(s => (
+            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+          ))}
+        </select>
 
         <div style={{ position: 'relative' }} ref={colDropdownRef}>
-          <Button variant="outline" size="sm" onClick={() => setColDropdownOpen(o => !o)}>
-            Columns ▾
-          </Button>
+          <button className="toolbar-select-btn" onClick={() => setColDropdownOpen(o => !o)}>
+            Columns <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
           {colDropdownOpen && (
             <div className="col-dropdown">
               {(
@@ -304,7 +300,7 @@ export default function CompaniesListPage() {
         </div>
 
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-          {filtered.length} {filtered.length === 1 ? 'company' : 'companies'}
+          {filtered.length} {filtered.length === 1 ? 'company loaded' : 'companies loaded'}
         </span>
       </div>
 
