@@ -5,7 +5,7 @@ export type WireSource = 'bloomberg' | 'reuters' | 'rss' | 'wireservice'
 export type ContactType = 'freetext' | 'html' | 'pdf'
 export type EmailFormat = 'html' | 'text'
 export type Tab = 'basic-info' | 'contacts' | 'distribution' | 'identifiers' | 'company-details'
-export type Modal = 'commit' | 'csv-import' | 'json-export' | 'json-import' | null
+export type Modal = 'commit' | 'csv-import' | 'json-export' | 'json-import' | 'annual-report' | null
 
 export interface Company {
   id: number

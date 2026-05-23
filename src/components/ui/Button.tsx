@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { ButtonHTMLAttributes } from 'react'
 
-type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'danger'
+type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'danger' | 'warning'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant

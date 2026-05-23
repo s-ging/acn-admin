@@ -3,6 +3,7 @@ import { useCompanyStore } from '../../../store/company.store'
 import { useDebouncedDraft } from '../../../hooks/useDebouncedDraft'
 import { Field } from '../../ui/Field'
 import { AboutBlock } from '../../ui/AboutBlock'
+import { LogoUpload } from '../LogoUpload'
 
 const BasicInfoTab = memo(function BasicInfoTab() {
   const draft = useCompanyStore(s => s.draft)
@@ -57,53 +58,16 @@ const BasicInfoTab = memo(function BasicInfoTab() {
 
       <section className="field-section">
         <div className="field-row">
-          <div className="logo-upload-zone">
-            <span className="label field">Article Page Logo</span>
-            <div className="logo-upload-zone__box">
-              <div className="logo-upload-zone__icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
-                </svg>
-              </div>
-              <p className="logo-upload-zone__text">
-                Drag and drop image files here or{' '}
-                <label className="logo-upload-zone__link">
-                  upload files from your computer.
-                  <input type="file" accept=".svg,.png,.jpg,.gif,.webp" hidden />
-                </label>
-              </p>
-              <p className="hint">
-                File formats accepted: .svg, .png, .jpg, .gif, .webp<br />
-                Maximum 3MB for all file types. Minimum 1000px width or less for non-SVG formats.
-              </p>
-            </div>
-          </div>
-
-          <div className="logo-upload-zone">
-            <span className="label field">Top Page Logo</span>
-            <div className="logo-upload-zone__box">
-              <div className="logo-upload-zone__icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
-                </svg>
-              </div>
-              <p className="logo-upload-zone__text">
-                Drag and drop image files here or{' '}
-                <label className="logo-upload-zone__link">
-                  upload files from your computer.
-                  <input type="file" accept=".svg,.png,.jpg,.gif,.webp" hidden />
-                </label>
-              </p>
-              <p className="hint">
-                File formats accepted: .svg, .png, .jpg, .gif, .webp<br />
-                Maximum 3MB for all file types. Minimum 1000px width or less for non-SVG formats.
-              </p>
-            </div>
-          </div>
+          <LogoUpload
+            companyId={draft.id}
+            field="logo_article_url"
+            label="Article page logo"
+          />
+          <LogoUpload
+            companyId={draft.id}
+            field="logo_top_url"
+            label="Top page logo"
+          />
         </div>
       </section>
 

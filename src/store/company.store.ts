@@ -5,6 +5,7 @@ interface CompanyStore {
   original: CompanyFull | null
   draft: CompanyFull | null
   changes: Change[]
+  resetCount: number
   setOriginal: (company: CompanyFull) => void
   updateDraft: (patch: Partial<CompanyFull>) => void
   computeChanges: () => void
@@ -12,10 +13,11 @@ interface CompanyStore {
   commitSuccess: () => void
 }
 
-export const useCompanyStore = create<CompanyStore>((set, _get) => ({
+export const useCompanyStore = create<CompanyStore>((set, get) => ({
   original: null,
   draft: null,
   changes: [],
+  resetCount: 0,
 
   setOriginal: (company) => set({
     original: company,
@@ -27,13 +29,17 @@ export const useCompanyStore = create<CompanyStore>((set, _get) => ({
   })),
 
   computeChanges: () => {
-    // v2 — diff engine not implemented yet
-    set({ changes: [] })
+    const { original, draft } = get()
+    if (!original || !draft) return
+    import('../lib/companies/diff').then(({ computeDiff }) => {
+      set({ changes: computeDiff(original, draft) })
+    })
   },
 
   resetDraft: () => set(state => ({
     draft: state.original ? structuredClone(state.original) : null,
-    changes: []
+    changes: [],
+    resetCount: state.resetCount + 1
   })),
 
   commitSuccess: () => set(state => ({

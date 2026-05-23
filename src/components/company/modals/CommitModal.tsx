@@ -1,0 +1,73 @@
+import { memo, useEffect, useRef, useState, useCallback } from 'react'
+import { useCompanyStore } from '../../../store/company.store'
+import { useUIStore } from '../../../store/ui.store'
+import { useToastStore } from '../../../store/toast.store'
+import { CommitDialog } from './CommitDialog'
+import type { CommitMode } from './CommitDialog'
+
+interface CommitModalProps {
+  mode?: CommitMode
+}
+
+export const CommitModal = memo(({ mode = 'commit' }: CommitModalProps) => {
+  const draft          = useCompanyStore(s => s.draft)
+  const changes        = useCompanyStore(s => s.changes)
+  const computeChanges = useCompanyStore(s => s.computeChanges)
+  const resetDraft     = useCompanyStore(s => s.resetDraft)
+  const commitSuccess  = useCompanyStore(s => s.commitSuccess)
+  const closeModal     = useUIStore(s => s.closeModal)
+  const addToast       = useToastStore(s => s.addToast)
+
+  const [ready,    setReady]    = useState(false)
+  const [reverted, setReverted] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    computeChanges()
+    const t = setTimeout(() => setReady(true), 50)
+    return () => clearTimeout(t)
+  }, [computeChanges])
+
+  useEffect(() => {
+    const timer = closeTimer
+    return () => { if (timer.current) clearTimeout(timer.current) }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !reverted) closeModal()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [closeModal, reverted])
+
+  const handleCommit = useCallback(() => {
+    if (draft) localStorage.setItem(`acn_company_${draft.id}`, JSON.stringify(draft))
+    commitSuccess()
+    closeModal()
+  }, [draft, commitSuccess, closeModal])
+
+  const handleDiscard = useCallback(() => {
+    resetDraft()
+    setReverted(true)
+    addToast('No changes recorded. Your data is safe.', 'success')
+    closeTimer.current = setTimeout(() => closeModal(), 2200)
+  }, [resetDraft, addToast, closeModal])
+
+  return (
+    <div className="commit-overlay">
+      <CommitDialog
+        mode={mode}
+        draft={draft}
+        changes={changes}
+        ready={ready}
+        reverted={reverted}
+        onClose={closeModal}
+        onCommit={handleCommit}
+        onDiscard={handleDiscard}
+      />
+    </div>
+  )
+})
+
+CommitModal.displayName = 'CommitModal'

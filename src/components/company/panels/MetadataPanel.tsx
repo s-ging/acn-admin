@@ -143,10 +143,9 @@ export const MetadataPanel = memo(() => {
             </div>
           </a>
         )}
-        <label className="btn btn--outline btn--sm cursor-pointer" style={{ width: '100%', justifyContent: 'center' }}>
+        <Button variant="outline" size="sm" style={{ width: '100%' }} onClick={() => openModal('annual-report')}>
           ↑ Upload annual report
-          <input type="file" accept=".pdf" hidden />
-        </label>
+        </Button>
       </div>
 
       <div className="metadata-panel__divider" />
