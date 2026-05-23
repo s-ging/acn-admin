@@ -24,9 +24,15 @@ export const CommitModal = memo(({ mode = 'commit' }: CommitModalProps) => {
 
   useEffect(() => {
     computeChanges()
-    const t = setTimeout(() => setReady(true), 50)
+    const t = setTimeout(() => setReady(true), 400)
     return () => clearTimeout(t)
   }, [computeChanges])
+
+  // Set ready immediately when the async computeChanges resolves — avoids a race
+  // where the 400ms fallback fires before the dynamic import finishes on cold load
+  useEffect(() => {
+    if (changes.length > 0) setReady(true)
+  }, [changes])
 
   useEffect(() => {
     const timer = closeTimer
