@@ -164,7 +164,6 @@ const DistributionTab = memo(function DistributionTab() {
         <span className="section-header__title">Wire Services</span>
         <div className="section-header__actions">
           <Button variant="outline" size="sm" onClick={() => { setAddingWire(true) }}>+ Add wire service</Button>
-          <Button variant="outline" size="sm">↓ Import from CSV</Button>
         </div>
       </div>
 
@@ -225,7 +224,6 @@ const DistributionTab = memo(function DistributionTab() {
         <span className="section-header__title">RSS Feeds</span>
         <div className="section-header__actions">
           <Button variant="outline" size="sm" onClick={() => { setAddingFeed(true); setEditingFeedId(null) }}>+ Add RSS Feed</Button>
-          <Button variant="outline" size="sm">↓ Import from CSV</Button>
         </div>
       </div>
 

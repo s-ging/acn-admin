@@ -157,9 +157,6 @@ const ContactsTab = memo(function ContactsTab() {
           <Button variant="outline" size="sm" onClick={() => { setAddingNew(true); setOpenId(null) }}>
             + Add contact
           </Button>
-          <Button variant="outline" size="sm">
-            ↓ Import from CSV
-          </Button>
         </div>
       </div>
 
