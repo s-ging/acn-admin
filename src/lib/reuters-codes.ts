@@ -1,0 +1,191 @@
+// src/lib/reuters-codes.ts
+// Reuters topic codes — static master list
+// Source: liaison.reuters.com/tools/topic-codes
+// Do not edit manually — update from source when Reuters publishes changes
+
+export interface ReutersCode {
+  code: string
+  description: string
+  category: string
+}
+
+export const REUTERS_CODES: ReutersCode[] = [
+  // Country
+  { code: 'AE', description: 'Arab Emirates', category: 'Country' },
+  { code: 'AF', description: 'Afghanistan', category: 'Country' },
+  { code: 'AT', description: 'Austria', category: 'Country' },
+  { code: 'AU', description: 'Australia', category: 'Country' },
+  { code: 'BD', description: 'Bangladesh', category: 'Country' },
+  { code: 'BE', description: 'Belgium', category: 'Country' },
+  { code: 'BN', description: 'Brunei', category: 'Country' },
+  { code: 'BR', description: 'Brazil', category: 'Country' },
+  { code: 'CA', description: 'Canada', category: 'Country' },
+  { code: 'CH', description: 'Switzerland', category: 'Country' },
+  { code: 'CN', description: 'China', category: 'Country' },
+  { code: 'DE', description: 'Germany', category: 'Country' },
+  { code: 'DK', description: 'Denmark', category: 'Country' },
+  { code: 'EE', description: 'Estonia', category: 'Country' },
+  { code: 'ES', description: 'Espana', category: 'Country' },
+  { code: 'FI', description: 'Finland', category: 'Country' },
+  { code: 'FR', description: 'France', category: 'Country' },
+  { code: 'GB', description: 'Great Britain', category: 'Country' },
+  { code: 'HK', description: 'Hong Kong', category: 'Country' },
+  { code: 'ID', description: 'Indonesia', category: 'Country' },
+  { code: 'IE', description: 'Ireland', category: 'Country' },
+  { code: 'IN', description: 'India', category: 'Country' },
+  { code: 'IT', description: 'Italy', category: 'Country' },
+  { code: 'JP', description: 'Japan', category: 'Country' },
+  { code: 'KG', description: 'Kyrgystan', category: 'Country' },
+  { code: 'KH', description: 'Cambodia', category: 'Country' },
+  { code: 'KP', description: 'Korea North', category: 'Country' },
+  { code: 'KR', description: 'Korea South', category: 'Country' },
+  { code: 'KZ', description: 'Kazakhstan', category: 'Country' },
+  { code: 'LK', description: 'Sri Lanka', category: 'Country' },
+  { code: 'MM', description: 'Myanmar', category: 'Country' },
+  { code: 'MO', description: 'Macau', category: 'Country' },
+  { code: 'MV', description: 'Maldives', category: 'Country' },
+  { code: 'MY', description: 'Malaysia', category: 'Country' },
+  { code: 'NG', description: 'Nigeria', category: 'Country' },
+  { code: 'NL', description: 'Netherlands', category: 'Country' },
+  { code: 'NO', description: 'Norway', category: 'Country' },
+  { code: 'NP', description: 'Nepal', category: 'Country' },
+  { code: 'NZ', description: 'New Zealand', category: 'Country' },
+  { code: 'OM', description: 'Oman', category: 'Country' },
+  { code: 'PH', description: 'Philippines', category: 'Country' },
+  { code: 'PK', description: 'Pakistan', category: 'Country' },
+  { code: 'PL', description: 'Poland', category: 'Country' },
+  { code: 'PT', description: 'Portugal', category: 'Country' },
+  { code: 'QA', description: 'Qatar', category: 'Country' },
+  { code: 'SA', description: 'Saudi Arabia', category: 'Country' },
+  { code: 'SE', description: 'Sweden', category: 'Country' },
+  { code: 'SG', description: 'Singapore', category: 'Country' },
+  { code: 'TH', description: 'Thailand', category: 'Country' },
+  { code: 'TL', description: 'East Timor', category: 'Country' },
+  { code: 'TW', description: 'Taiwan', category: 'Country' },
+  { code: 'US', description: 'United States of America', category: 'Country' },
+  { code: 'VN', description: 'Vietnam', category: 'Country' },
+  { code: 'ZA', description: 'South Africa', category: 'Country' },
+
+  // Equities
+  { code: 'CFIN', description: 'Corporate Finance', category: 'Equities' },
+  { code: 'DIV', description: 'Dividends', category: 'Equities' },
+  { code: 'EXCA', description: 'Exchange Activities', category: 'Equities' },
+  { code: 'IPO', description: 'Initial Public Offerings', category: 'Equities' },
+  { code: 'ISU', description: 'New Issue Equity, Debt', category: 'Equities' },
+  { code: 'MNGISS', description: 'Management Issues', category: 'Equities' },
+  { code: 'MRG', description: 'Mergers & Acquisitions, Buyouts', category: 'Equities' },
+  { code: 'NEWR', description: 'News Releases', category: 'Equities' },
+  { code: 'PVE', description: 'Private Equity', category: 'Equities' },
+  { code: 'RCH', description: 'Research', category: 'Equities' },
+  { code: 'RES', description: 'Results', category: 'Equities' },
+  { code: 'RESF', description: 'Result Forecasts', category: 'Equities' },
+  { code: 'STINV', description: 'Startups', category: 'Equities' },
+
+  // General News
+  { code: 'AID', description: 'Private/Government Aid', category: 'General News' },
+  { code: 'BOMB', description: 'Bombings', category: 'General News' },
+  { code: 'DEF', description: 'Defence', category: 'General News' },
+  { code: 'DIP', description: 'Diplomacy, International Relations', category: 'General News' },
+  { code: 'DIS', description: 'Disasters, Accidents, Natural Catastrophes', category: 'General News' },
+  { code: 'EDU', description: 'Education', category: 'General News' },
+  { code: 'ENT', description: 'Arts, Culture, Entertainment', category: 'General News' },
+  { code: 'ENV', description: 'Environment, Natural World, Conservation', category: 'General News' },
+  { code: 'FILM', description: 'Film/Movies', category: 'General News' },
+  { code: 'FRX', description: 'Forex', category: 'General News' },
+  { code: 'FUND', description: 'Funds', category: 'General News' },
+  { code: 'HEA', description: 'Health, Medicines', category: 'General News' },
+  { code: 'INV', description: 'Investing', category: 'General News' },
+  { code: 'JOB', description: 'Jobs, Employment', category: 'General News' },
+  { code: 'JUDIC', description: 'Judicial Processes, Court Cases', category: 'General News' },
+  { code: 'LAW', description: 'Legislation', category: 'General News' },
+  { code: 'LIF', description: 'Lifestyle', category: 'General News' },
+  { code: 'LOA', description: 'Loans', category: 'General News' },
+  { code: 'MUSIC', description: 'Music, Musical Artists', category: 'General News' },
+  { code: 'POL', description: 'Domestic Politics', category: 'General News' },
+  { code: 'PRO', description: 'Biographies, Personalities, People', category: 'General News' },
+  { code: 'REL', description: 'Religion', category: 'General News' },
+  { code: 'SCI', description: 'Science, Technology', category: 'General News' },
+  { code: 'SECUR', description: 'National and International Security', category: 'General News' },
+  { code: 'TAX', description: 'Tax', category: 'General News' },
+  { code: 'TRD', description: 'Trade International', category: 'General News' },
+
+  // Industrial Sector
+  { code: 'ADV', description: 'Advertising', category: 'Industrial Sector' },
+  { code: 'AER', description: 'Aerospace', category: 'Industrial Sector' },
+  { code: 'AIR', description: 'Air Transport', category: 'Industrial Sector' },
+  { code: 'APL', description: 'Appliances Electrical', category: 'Industrial Sector' },
+  { code: 'AUT', description: 'Automobiles, Equipment', category: 'Industrial Sector' },
+  { code: 'BACT', description: 'Business Activities', category: 'Industrial Sector' },
+  { code: 'BEV', description: 'Beverages, Tobacco', category: 'Industrial Sector' },
+  { code: 'BIO', description: 'Biotechnology', category: 'Industrial Sector' },
+  { code: 'BLD', description: 'Building Materials', category: 'Industrial Sector' },
+  { code: 'BLKCHN', description: 'Blockchain', category: 'Industrial Sector' },
+  { code: 'BNK', description: 'Banking', category: 'Industrial Sector' },
+  { code: 'BUS', description: 'Business Services', category: 'Industrial Sector' },
+  { code: 'CHE', description: 'Chemicals', category: 'Industrial Sector' },
+  { code: 'CON', description: 'Construction', category: 'Industrial Sector' },
+  { code: 'CRYCUR', description: 'CryptoCurrencies', category: 'Industrial Sector' },
+  { code: 'DPR', description: 'Data Processing, Office Equipment', category: 'Industrial Sector' },
+  { code: 'DRU', description: 'Drugs, Pharmaceutical, Healthcare', category: 'Industrial Sector' },
+  { code: 'ELC', description: 'Electronics, Telecom Equipment', category: 'Industrial Sector' },
+  { code: 'ELG', description: 'Utilities', category: 'Industrial Sector' },
+  { code: 'ELI', description: 'Electronic Components, Chips', category: 'Industrial Sector' },
+  { code: 'ENQ', description: 'Energy Equipment', category: 'Industrial Sector' },
+  { code: 'ENR', description: 'Energy & Resources', category: 'Industrial Sector' },
+  { code: 'FIN', description: 'Financials', category: 'Industrial Sector' },
+  { code: 'FOD', description: 'Food', category: 'Industrial Sector' },
+  { code: 'GDM', description: 'Gold, Precious Metals', category: 'Industrial Sector' },
+  { code: 'GSFT', description: 'Games Software', category: 'Industrial Sector' },
+  { code: 'HDWR', description: 'Hardware, Networking', category: 'Industrial Sector' },
+  { code: 'IND', description: 'Industrial Equipment', category: 'Industrial Sector' },
+  { code: 'INS', description: 'Insurance', category: 'Industrial Sector' },
+  { code: 'LEI', description: 'Leisure, Tourism', category: 'Industrial Sector' },
+  { code: 'LUX', description: 'Luxury Goods', category: 'Industrial Sector' },
+  { code: 'MAC', description: 'Metal Goods and Engineering', category: 'Industrial Sector' },
+  { code: 'MET', description: 'Metals, Mining', category: 'Industrial Sector' },
+  { code: 'MIS', description: 'Miscellaneous Materials', category: 'Industrial Sector' },
+  { code: 'NGS', description: 'Natural Gas', category: 'Industrial Sector' },
+  { code: 'NUC', description: 'Nuclear', category: 'Industrial Sector' },
+  { code: 'PLAS', description: 'Plastics', category: 'Industrial Sector' },
+  { code: 'PUB', description: 'Publishing, Media', category: 'Industrial Sector' },
+  { code: 'REA', description: 'Real Estate', category: 'Industrial Sector' },
+  { code: 'REC', description: 'Recreation', category: 'Industrial Sector' },
+  { code: 'RET', description: 'Retail', category: 'Industrial Sector' },
+  { code: 'RNW', description: 'Renewable Energy', category: 'Industrial Sector' },
+  { code: 'RRL', description: 'Road and Rail', category: 'Industrial Sector' },
+  { code: 'SFWR', description: 'Software', category: 'Industrial Sector' },
+  { code: 'SHP', description: 'Shipping', category: 'Industrial Sector' },
+  { code: 'STL', description: 'Steel', category: 'Industrial Sector' },
+  { code: 'TBCS', description: 'TV, Broadcast, Satellite', category: 'Industrial Sector' },
+  { code: 'TEL', description: 'Telecommunications', category: 'Industrial Sector' },
+  { code: 'TEX', description: 'Textiles & Clothing', category: 'Industrial Sector' },
+  { code: 'TIM', description: 'Timber, Pulp & Paper', category: 'Industrial Sector' },
+  { code: 'WHO', description: 'Wholesale, Trading', category: 'Industrial Sector' },
+  { code: 'WWW', description: 'World-wide Web, Internet', category: 'Industrial Sector' },
+
+  // Region
+  { code: 'AFR', description: 'Africa', category: 'Region' },
+  { code: 'AMERS', description: 'Americas', category: 'Region' },
+  { code: 'ASIA', description: 'Asia', category: 'Region' },
+  { code: 'EEU', description: 'Eastern Europe', category: 'Region' },
+  { code: 'EMRG', description: 'Emerging Markets', category: 'Region' },
+  { code: 'EUROPE', description: 'Europe', category: 'Region' },
+  { code: 'LATAM', description: 'South and Central America', category: 'Region' },
+  { code: 'MEAST', description: 'Middle East', category: 'Region' },
+  { code: 'WEU', description: 'Western Europe', category: 'Region' },
+]
+
+// All unique categories for grouping in the UI
+export const REUTERS_CATEGORIES = [...new Set(REUTERS_CODES.map(c => c.category))]
+
+// Search helper — searches code and description, case-insensitive
+export function searchReutersCodes(query: string): ReutersCode[] {
+  if (!query.trim()) return REUTERS_CODES
+  const q = query.toLowerCase()
+  return REUTERS_CODES.filter(
+    c =>
+      c.code.toLowerCase().includes(q) ||
+      c.description.toLowerCase().includes(q) ||
+      c.category.toLowerCase().includes(q)
+  )
+}
