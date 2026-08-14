@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
+import { normalizeCompany } from '../../lib/companies/normalize'
 import type { CompanyFull, CompanyStatus } from '../../types/company.types'
 
 function loadCompanies(): CompanyFull[] {
   return Object.keys(localStorage)
     .filter(k => k.startsWith('acn_company_'))
     .map(k => {
-      try { return JSON.parse(localStorage.getItem(k) || '') as CompanyFull }
+      try { return normalizeCompany(JSON.parse(localStorage.getItem(k) || '') as CompanyFull) }
       catch { return null }
     })
     .filter(Boolean) as CompanyFull[]
@@ -159,6 +160,7 @@ export default function CompaniesListPage() {
       about_html: null,
       about_prosemirror: null,
       languages: [],
+      secondary_languages: [],
       created_at: now,
       updated_at: now,
       created_by: null,

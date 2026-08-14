@@ -45,7 +45,12 @@ export interface Company {
   key_person_2_title: string | null
   about_html: string | null
   about_prosemirror: object | null
+  // The company's main language — the one releases are issued in as standard.
+  // Holds at most one entry; kept as an array for the API shape.
   languages: LanguageCode[]
+  // Languages the company also issues releases in, but less often than the main
+  // one. Must not overlap with `languages` — see lib/languages.ts.
+  secondary_languages: LanguageCode[]
   created_at: string
   updated_at: string
   created_by: number | null

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import CompanyEditor from '../../components/company/CompanyEditor'
+import { normalizeCompany } from '../../lib/companies/normalize'
 import type { CompanyFull } from '../../types/company.types'
 
 export default function CompanyEditorPage() {
@@ -13,7 +14,7 @@ export default function CompanyEditorPage() {
     const stored = localStorage.getItem(`acn_company_${id}`)
     if (!stored) { navigate('/companies'); return }
     try {
-      const company = JSON.parse(stored) as CompanyFull
+      const company = normalizeCompany(JSON.parse(stored) as CompanyFull)
       if (company.annual_report_url?.startsWith('data:')) {
         company.annual_report_url = null
       }

@@ -1,3 +1,4 @@
+import { LANGUAGES, LANGUAGE_STATE_INFO, getLanguageState } from '../languages'
 import type {
   CompanyFull,
   Change,
@@ -64,18 +65,33 @@ export function computeDiff(original: CompanyFull, draft: CompanyFull): Change[]
     }
   }
 
-  // Languages (order-independent)
-  const origLangs = new Set(original.languages)
-  const draftLangs = new Set(draft.languages)
-  for (const lang of draftLangs) {
-    if (!origLangs.has(lang)) {
-      const change: RecordChange = { type: 'add', section: 'basic-info', entity: 'Language', label: lang, detail: null }
+  // Languages (order-independent). Compared by state rather than by membership
+  // of a single list, so a language moving between main and secondary reads as
+  // one change instead of a remove plus an add.
+  for (const { code } of LANGUAGES) {
+    const before = getLanguageState(original, code)
+    const after = getLanguageState(draft, code)
+    if (before === after) continue
+
+    if (before === 'none') {
+      const change: RecordChange = {
+        type: 'add', section: 'basic-info', entity: 'Language', label: code,
+        detail: LANGUAGE_STATE_INFO[after].label,
+      }
       changes.push(change)
-    }
-  }
-  for (const lang of origLangs) {
-    if (!draftLangs.has(lang)) {
-      const change: RecordChange = { type: 'remove', section: 'basic-info', entity: 'Language', label: lang, detail: null }
+    } else if (after === 'none') {
+      const change: RecordChange = {
+        type: 'remove', section: 'basic-info', entity: 'Language', label: code,
+        detail: LANGUAGE_STATE_INFO[before].label,
+      }
+      changes.push(change)
+    } else {
+      const change: FieldChange = {
+        type: 'edit', section: 'basic-info', field: `language:${code}`,
+        label: `Language ${code}`,
+        old_value: LANGUAGE_STATE_INFO[before].label,
+        new_value: LANGUAGE_STATE_INFO[after].label,
+      }
       changes.push(change)
     }
   }

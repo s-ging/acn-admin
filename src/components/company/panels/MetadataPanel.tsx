@@ -2,17 +2,21 @@ import { memo, useState } from 'react'
 import { useCompanyStore } from '../../../store/company.store'
 import { useUIStore } from '../../../store/ui.store'
 import { Button } from '../../ui/Button'
+import { ContextMenu } from '../../ui/ContextMenu'
+import { SECTORS, SECTOR_TYPES, getSectorsByType } from '../../../lib/sectors'
+import { applySectorRouting } from '../../../lib/sector-routing'
+import {
+  LANGUAGES,
+  LANGUAGE_STATES,
+  LANGUAGE_STATE_INFO,
+  LANGUAGE_NAMES,
+  getLanguageState,
+  nextLanguageState,
+  setLanguageState,
+  describeLanguage,
+} from '../../../lib/languages'
+import type { LanguageState } from '../../../lib/languages'
 import type { LanguageCode, CompanyStatus } from '../../../types/company.types'
-
-const ALL_LANGUAGES: { code: LanguageCode; label: string }[] = [
-  { code: 'EN', label: 'EN' },
-  { code: 'ZH-HANS', label: 'ZH-HANS' },
-  { code: 'ZH-HANT', label: 'ZH-HANT' },
-  { code: 'JA', label: 'JA' },
-  { code: 'KO', label: 'KO' },
-]
-
-const EXTRA_LANGUAGES: { code: LanguageCode; label: string }[] = []
 
 function CopyIcon() {
   return (
@@ -23,10 +27,9 @@ function CopyIcon() {
   )
 }
 
-function LanguageDot({ active, partial }: { active: boolean; partial?: boolean }) {
-  if (active) return <span className="lang-dot lang-dot--active" />
-  if (partial) return <span className="lang-dot lang-dot--partial" />
-  return <span className="lang-dot lang-dot--off" />
+function LanguageDot({ state }: { state: LanguageState }) {
+  const modifier = state === 'primary' ? 'active' : state === 'secondary' ? 'partial' : 'off'
+  return <span className={`lang-dot lang-dot--${modifier}`} />
 }
 
 export const MetadataPanel = memo(() => {
@@ -37,25 +40,43 @@ export const MetadataPanel = memo(() => {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copiedUsername, setCopiedUsername] = useState(false)
-  const [partialLanguages, setPartialLanguages] = useState<Set<LanguageCode>>(new Set())
+  const [langMenu, setLangMenu] = useState<{ code: LanguageCode; x: number; y: number } | null>(null)
 
   if (!draft) return null
 
-  const cycleLanguage = (code: LanguageCode) => {
-    const isActive = draft.languages.includes(code)
-    const isPartial = partialLanguages.has(code)
+  const applyLanguageState = (code: LanguageCode, state: LanguageState) => {
+    updateDraft(setLanguageState(draft, code, state))
+  }
 
-    if (!isActive && !isPartial) {
-      // blank → black
-      setPartialLanguages(prev => new Set([...prev, code]))
-    } else if (isPartial) {
-      // black → green
-      setPartialLanguages(prev => { const n = new Set(prev); n.delete(code); return n })
-      updateDraft({ languages: [...draft.languages, code] })
-    } else {
-      // green → blank
-      updateDraft({ languages: draft.languages.filter(l => l !== code) })
+  const cycleLanguage = (code: LanguageCode) => {
+    applyLanguageState(code, nextLanguageState(getLanguageState(draft, code)))
+  }
+
+  // Single-select: the draft still carries an array, but it holds at most one sector.
+  const selectedSectorId = draft.sectors[0]?.sector_id ?? ''
+
+  const handleSectorChange = (value: string) => {
+    const previousSectorId = draft.sectors[0]?.sector_id ?? null
+
+    if (!value) {
+      updateDraft({
+        sectors: [],
+        wire_codes: applySectorRouting(draft.wire_codes, draft.id, previousSectorId, null),
+      })
+      return
     }
+    const sector = SECTORS.find(s => s.id === Number(value))
+    if (!sector) return
+    updateDraft({
+      sectors: [{
+        id: draft.sectors[0]?.id ?? Date.now() + sector.id,
+        company_id: draft.id,
+        sector_id: sector.id,
+        sector_type: sector.sector_type,
+        sector_name: sector.sector_name,
+      }],
+      wire_codes: applySectorRouting(draft.wire_codes, draft.id, previousSectorId, sector.id),
+    })
   }
 
   const handleCopyUsername = () => {
@@ -74,9 +95,12 @@ export const MetadataPanel = memo(() => {
     }
   }
 
+  // LanguageCode currently covers exactly the five in LANGUAGES, so there is
+  // nothing extra to reveal — the toggle is kept for when the list grows.
+  const EXTRA_LANGUAGES: typeof LANGUAGES = []
   const visibleLanguages = expanded
-    ? [...ALL_LANGUAGES, ...EXTRA_LANGUAGES]
-    : ALL_LANGUAGES
+    ? [...LANGUAGES, ...EXTRA_LANGUAGES]
+    : LANGUAGES
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-CA').replace(/-/g, '/')
@@ -85,6 +109,27 @@ export const MetadataPanel = memo(() => {
     <aside className="metadata-panel">
 
       <div className="label field">Metadata</div>
+
+      {/* Sector */}
+      <div className="metadata-panel__section">
+        <span className="label">Sector</span>
+        <select
+          className="metadata-status-select"
+          value={selectedSectorId}
+          onChange={e => handleSectorChange(e.target.value)}
+        >
+          <option value="">— None —</option>
+          {SECTOR_TYPES.map(type => (
+            <optgroup key={type} label={type}>
+              {getSectorsByType(type).map(s => (
+                <option key={s.id} value={s.id}>{s.sector_name}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      <div className="metadata-panel__divider" />
 
       {/* Status */}
       <div className="metadata-panel__section">
@@ -106,16 +151,25 @@ export const MetadataPanel = memo(() => {
       <div className="metadata-panel__section">
         <span className="label">Languages</span>
         <div className="lang-list">
-          {visibleLanguages.map(({ code, label }) => (
-            <button
-              key={code}
-              className="lang-row"
-              onClick={() => cycleLanguage(code)}
-            >
-              <span className="label">{label}</span>
-              <LanguageDot active={draft.languages.includes(code)} partial={partialLanguages.has(code)} />
-            </button>
-          ))}
+          {visibleLanguages.map(({ code, label }) => {
+            const state = getLanguageState(draft, code)
+            return (
+              <button
+                key={code}
+                className="lang-row"
+                title={describeLanguage(code, state)}
+                aria-label={`${LANGUAGE_NAMES[code]}: ${LANGUAGE_STATE_INFO[state].label}`}
+                onClick={() => cycleLanguage(code)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setLangMenu({ code, x: e.clientX, y: e.clientY })
+                }}
+              >
+                <span className="label">{label}</span>
+                <LanguageDot state={state} />
+              </button>
+            )
+          })}
         </div>
         <Button variant="ghost" size="sm" onClick={() => setExpanded(e => !e)}>
           {expanded ? 'collapse...' : 'expand...'}
@@ -205,6 +259,22 @@ export const MetadataPanel = memo(() => {
           Import JSON
         </Button>
       </div>
+
+      {langMenu && (
+        <ContextMenu
+          x={langMenu.x}
+          y={langMenu.y}
+          header={LANGUAGE_NAMES[langMenu.code]}
+          onClose={() => setLangMenu(null)}
+          items={LANGUAGE_STATES.map(({ state, label, description }) => ({
+            key: state,
+            label,
+            description,
+            selected: getLanguageState(draft, langMenu.code) === state,
+            onSelect: () => applyLanguageState(langMenu.code, state),
+          }))}
+        />
+      )}
 
     </aside>
   )

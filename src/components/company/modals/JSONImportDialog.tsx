@@ -2,6 +2,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react'
 import { Button } from '../../ui/Button'
 import { DropZone } from '../../ui/DropZone'
 import { UploadIcon } from '../../ui/UploadIcon'
+import { normalizeCompany } from '../../../lib/companies/normalize'
 import type { CompanyFull } from '../../../types/company.types'
 
 type ImportState = 'upload' | 'summary' | 'success'
@@ -66,7 +67,7 @@ export const JSONImportDialog = memo(({ onClose, onLoad }: JSONImportDialogProps
           setError(`Missing required fields: ${missing.join(', ')}`)
           return
         }
-        setParsed(data as CompanyFull)
+        setParsed(normalizeCompany(data as CompanyFull))
         setImportState('summary')
       } catch {
         setError('Could not parse this file. Make sure it is a valid JSON file exported from ACN Portal.')
