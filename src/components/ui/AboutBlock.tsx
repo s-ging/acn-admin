@@ -1,15 +1,19 @@
 import { memo, useState, useCallback } from 'react'
 import { Button } from './Button'
 import { RichTextEditor } from './RichTextEditor'
+import type { ToolbarVariant } from './RichTextEditor'
 
 interface AboutBlockProps {
   label: string
   subtitle?: string
   html: string | null
   onChange: (html: string) => void
+  /** Passed through to the editor. `basic` for boilerplate prose. */
+  variant?: ToolbarVariant
+  placeholder?: string
 }
 
-export const AboutBlock = memo(({ label, subtitle, html, onChange }: AboutBlockProps) => {
+export const AboutBlock = memo(({ label, subtitle, html, onChange, variant, placeholder }: AboutBlockProps) => {
   const [editing, setEditing] = useState(false)
   const [localHTML, setLocalHTML] = useState(html ?? '')
   const [editorMounted, setEditorMounted] = useState(false)
@@ -53,6 +57,8 @@ export const AboutBlock = memo(({ label, subtitle, html, onChange }: AboutBlockP
           <RichTextEditor
             initialHTML={localHTML}
             onChange={setLocalHTML}
+            variant={variant}
+            placeholder={placeholder}
           />
         )}
       </div>

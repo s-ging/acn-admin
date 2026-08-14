@@ -1,6 +1,6 @@
 # Press Release Editor — Build Plan
 
-Status: **agreed, not yet built.** One open question in §10.
+Status: **built.** §10 has since been answered, and *not* the way the default assumed — see that section. Implementation notes in §3.
 
 Scope: a functional scaffold for the press release editor at `/article/{id}`. Not a finished product — but every decision here is made so the scaffold doesn't have to be unpicked later.
 
@@ -27,11 +27,22 @@ It also sets up a later win: once a release knows its sector, [`lib/sector-routi
 
 ### Canvas (left)
 
-Breadcrumb → "Create Press Release" title with two read-only chips (Company, Article ID) → Headline | Subheadline side by side → Summary full width → Main Content (rich text) → Custom About (rich text).
+Breadcrumb → "Create Press Release" title with two read-only chips (Primary issuer, Article ID) → Headline | Subheadline side by side → Summary full width → **Dateline** → Main Content (rich text) → Custom About (rich text).
+
+**The Dateline is not a field.** It is the opening of `body_html` — the way the wires and NewsML treat it — and the box on the canvas parses and rewrites that text rather than storing a second copy. See [`lib/press-releases/dateline.ts`](../src/lib/press-releases/dateline.ts); the recognition rule documented there is the thing to confirm with the desk.
+
+**It composes itself.** Location + Date give `Tokyo, Japan` + `2020-08-14` → `TOKYO, August 14, 2020`, recomposed whenever either changes. Typing your own takes it off the automatic one — `dateline_overridden`, the same escape hatch `classification_overridden` gives Sector — and a "Use location" link puts it back.
+
+Two things keep this from ever eating someone's copy:
+
+- Only the opening of the *first* paragraph is ever rewritten.
+- Records written before the flag existed are marked overridden on load **if they already have a dateline**. Auto-fill therefore only applies to releases with nothing to lose.
 
 ### Sidebar (right)
 
-Its own "Save changes" header, then six collapsible groups. **~500px wide — nearly double the company editor's `--panel-width: 280px`.** That is a structural difference, not a detail: the company sidebar is a strip of metadata, this one is half the working surface.
+A "Metadata" title, then six collapsible groups. **~500px wide — nearly double the company editor's `--panel-width: 280px`.** That is a structural difference, not a detail: the company sidebar is a strip of metadata, this one is half the working surface.
+
+Save and Discard live in the **editor topbar**, alongside the breadcrumb, exactly as they do in the company editor — one place to save, whichever half you were working in.
 
 ### The control-style split
 
@@ -58,10 +69,10 @@ Which maps onto the two sidebar fields exactly:
 
 | Sidebar field | Derived from | Cardinality |
 |---|---|---|
-| **Sector** (single select) | `sector_type` of the **primary** company | one |
-| **Industry** (chips) | `sector_name` of **every** selected company, deduped | many |
+| **Sector** (single select) | `sector_type` of the **primary issuer** | one |
+| **Industry** (chips) | `sector_name` of **every** company on the release, deduped | many |
 
-Worked example — Toyota (Automotive) + Honda (Automotive) + Mitsubishi Heavy (Manufacturing):
+Worked example — Toyota (Automotive) + Honda (Automotive) + Mitsubishi Heavy (Manufacturing), Toyota the issuer:
 
 > Sector: `Industrial` · Industry: `Automotive`, `Manufacturing`
 
@@ -69,7 +80,7 @@ Worked example — Toyota (Automotive) + Honda (Automotive) + Mitsubishi Heavy (
 
 | Case | Rule |
 |---|---|
-| Companies span different categories (Toyota = Industrial, Datavault = Technology) | Sector follows the **primary company only** — "the sector is whoever's release this is". Industry still collects from all. |
+| Companies span different categories (Toyota = Industrial, Datavault = Technology) | Sector follows the **primary issuer only** — "the sector is whoever's release this is". Industry still collects from all. |
 | A selected company has no sector | Contributes nothing. Fields go empty with a hint. Never guess. |
 | The editor disagrees with the derivation | `classification_overridden: boolean`. `false` (default) = read-only, recomputes whenever companies change. `true` = unlocked for manual edit, recomputation stops. |
 
@@ -79,20 +90,32 @@ That override flag is two lines now and a data migration later. Without it the s
 
 `lib/press-releases/derive.ts` — a **pure function**, same pattern as `applySectorRouting`: takes companies plus current classification, returns a patch. Called from the update path, unit-tested exhaustively before any UI hangs off it.
 
+### Implementation note — resolve through the taxonomy, not the stored strings
+
+Found while building. A company's `sector_type` / `sector_name` are a denormalised copy that predates the current taxonomy and **can be stale**: seeded records carry `Industry` where [`lib/sectors.ts`](../src/lib/sectors.ts) says `Industrial`, and `Finance` where it says `Financial`. Deriving straight from the stored string would have filed Toyota under `Industry`, not the `Industrial` in the worked example above.
+
+So `resolveSector()` looks the company's `sector_id` up in the master list and takes the taxonomy's spelling, falling back to the stored strings only for a sector the list doesn't know. The rule in §3 is unchanged — this is just where it reads the words from.
+
+The single update path lives in `ArticleMetadataPanel`: every group patches the draft through one `update()` that runs the derivation, so no control can change the company selection without the classification following.
+
+The company-list rules themselves — no duplicates, and a primary issuer that is always a company actually on the release — live in [`lib/press-releases/companies.ts`](../src/lib/press-releases/companies.ts) as pure patch-returning functions, so the UI never hand-rolls them.
+
 ---
 
 ## 4. Sidebar group order
 
 | # | Group | Fields |
 |---|---|---|
-| 1 | **Publication** | Date · Status · **Company** (primary) |
-| 2 | **Classification** *(derived, demoted)* | Sector · Industry chips · Topic |
+| 1 | **Publication** | Date · Status · **Companies** (the whole list, one crowned as primary issuer) |
+| 2 | **Classification** *(derived, demoted)* | Sector · Industry chips · Topic · Languages |
 | 3 | **Location** | Region · Location |
-| 4 | **Relations** | Supplier · Companies (additional) · Contacts · Translations |
+| 4 | **Relations** | Supplier · Contacts · Translations |
 | 5 | **Distribution** | Article Type · Tracking ID · Distribute to · Source |
 | 6 | **Workflow** | Report By · Send By |
 
 Changes from the mockup: **Status** moves up out of Workflow into group 1. **Sector / Industry** drop into a quieter read-only treatment. Group 1 is what you touch; group 2 is what results.
+
+There is only one company control, and it is in group 1 — see §10. Relations keeps the people and the links.
 
 Language (EN/JA dots) stays in Classification to match the mockup, though it overlaps conceptually with Translations in group 4. Worth collapsing later — not in the scaffold.
 
@@ -104,12 +127,12 @@ Language (EN/JA dots) stays in Classification to match the mockup, though it ove
 
 | Area | Fields |
 |---|---|
-| Identity | `id`, `company_id` (primary), `article_id` |
-| Content | `headline`, `subheadline`, `summary`, `body_html`, `custom_about_html` |
+| Identity | `id`, `article_id`, `company_ids[]`, `primary_issuer_id` |
+| Content | `headline`, `subheadline`, `summary`, `body_html`, `dateline_overridden`, `custom_about_html` |
 | Publication | `published_at` (ISO), `status` |
 | Classification | `sector_type`, `industries[]`, `topic`, `classification_overridden`, `languages` / `secondary_languages` |
 | Location | `region`, `location` |
-| Relations | `supplier`, `related_company_ids[]`, `contacts[]`, `translations[]` |
+| Relations | `supplier`, `contacts[]`, `translations[]` |
 | Distribution | `article_type`, `tracking_id`, `distribute_to`, `source` |
 | Workflow | `report_by`, `send_by` |
 | Audit | `created_at`, `updated_at` |
@@ -175,7 +198,7 @@ Plus one route in `App.tsx` and one block appended to `ui.css`.
 | `.metadata-input` | Boxed sidebar **input**; only the boxed *select* exists |
 | `.metadata-field--derived` | Read-only / locked treatment for Sector and Industry |
 | `--panel-width-article: 500px` | Sidebar is ~2× the company panel |
-| `.panel-topbar` | "Save changes" header inside the panel |
+| `.issuer-grid` / `.issuer-table` | `.data-table` at sidebar scale, for the company list |
 | `.translation-row` | EN active / JA "Add link +" row |
 
 `DateTimeField` wraps a native `<input type="datetime-local">` styled to match `.metadata-status-select` — closes the documented date gap with no new dependency.
@@ -188,28 +211,45 @@ Anything added here gets appended to the style reference in the same pass.
 
 Move any of these in if wanted:
 
-- **Press-release list page** — the breadcrumb implies one; would be stubbed
+- ~~**Press-release list page**~~ — **built after all**, at `/article`, from the same `.companies-*` shell the companies list uses. That meant the `<Badge>` blocker below had to be dealt with rather than sidestepped: `.badge--published` / `--scheduled` / `--archived` are now defined (`draft` was already), so status renders correctly in the table
 - **Diff / commit modal** — a whole subsystem; save writes directly
-- **Image upload in the body** — the RTE runs StarterKit + link + underline only. **No image extension is installed**, so the inline image in the mockup needs a new TipTap extension, not just styling
+- ~~**Image upload in the body**~~ — **built after all**, along with tables and alignment. The RTE became a module under [`components/ui/rte/`](../src/components/ui/rte/) with a `full` / `basic` variant split; see [style reference §3.4](./UI-STYLE-REFERENCE.md). Uploaded images are inlined as base64 and capped at 1MB, and `saveArticle` now reports a quota failure instead of throwing
 - **Wire-code routing** from the derived sector
 - **Topbar search**, **left icon rail**
 
-Known blocker for a future list page: `<Badge>`'s variants don't exist in CSS ([style reference §9](./UI-STYLE-REFERENCE.md)). Status renders as a select here, so the scaffold sidesteps it.
+Resolved blocker: `<Badge>`'s severity variants still don't exist in CSS ([style reference §9](./UI-STYLE-REFERENCE.md)), but the raw `badge badge--{status}` form now has a class for every press release status, which is what the list page uses. The editor sidebar renders status as a select regardless.
 
 ---
 
-## 10. Open question
+## 10. Open question — resolved by default
 
-The mockup shows **two** company concepts: a singular `Company: Datavault AI` chip on the canvas, and a plural `Companies: TOYOTA, Mitsubishi Heavy Industries, Honda` list in Relations.
+The mockup showed **two** company concepts: a singular `Company: Datavault AI` chip on the canvas, and a plural `Companies: TOYOTA, Mitsubishi Heavy Industries, Honda` list in Relations. The original build assumed a primary company plus a bag of lesser "additional" ones.
 
-This plan assumes:
+**Answered: neither tier nor flat, but flat with a crown.**
 
-> **primary company** — group 1, drives Sector, appears in the canvas chip
-> **additional companies** — Relations, contribute Industry chips only
+> Every company on a release carries **equal weight**. There is no second class:
+> each one is credited and each one contributes its sector to Industry.
+>
+> Exactly one of them is the **primary issuer** — whose release this ultimately
+> is. That one, and only that one, sets the Sector, and it is the company named
+> on the canvas.
 
-If instead there is one flat list of co-responsible companies with no primary, the Sector rule needs a different tie-breaker (most common category, or first added). Everything else in this plan is unaffected.
+So precedence is a **flag, not a position**: the issuer can sit anywhere in the list, and re-sorting the table never changes who it is.
 
-**Default if unanswered:** build primary + additional, because it makes the derivation deterministic.
+| Was | Now |
+|---|---|
+| `company_id` + `related_company_ids[]` | `company_ids[]` + `primary_issuer_id` |
+| Two controls: one in Publication, one in Relations | One table in Publication |
+| Sector from the primary company | Sector from the primary issuer |
+
+Rules, in [`lib/press-releases/companies.ts`](../src/lib/press-releases/companies.ts):
+
+- `company_ids` holds no duplicates.
+- `primary_issuer_id` is null or a member of `company_ids` — never a company that isn't on the release.
+- The first company added becomes the issuer.
+- **Removing the issuer promotes the first company still on the release**, so the Sector keeps deriving. A release with companies but no issuer can derive nothing, which is a worse state than picking the obvious one.
+
+Old records migrate on read through `normalizeArticle` — the old singular company was by definition the one that took precedence, so it becomes the issuer and keeps its place at the head of the list. That is what the choke point in §6 was for.
 
 ---
 

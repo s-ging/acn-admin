@@ -1,111 +1,84 @@
-import { memo, useEffect } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
+import { memo, useCallback, useState } from 'react'
+import { useEditor, EditorContent, useEditorState } from '@tiptap/react'
+import { buildExtensions } from './rte/extensions'
+import type { ToolbarVariant } from './rte/extensions'
+import { RichTextToolbar } from './rte/RichTextToolbar'
+import { ImageDialog } from './rte/ImageDialog'
+import type { InsertImagePayload } from './rte/ImageDialog'
+
+export type { ToolbarVariant }
 
 interface RichTextEditorProps {
   initialHTML: string
   onChange: (html: string) => void
   placeholder?: string
+  /**
+   * `full` (default) — images, tables, alignment, headings. For release bodies.
+   * `basic` — text and links only. For a paragraph of boilerplate.
+   */
+  variant?: ToolbarVariant
 }
 
-export const RichTextEditor = memo(({ initialHTML, onChange, placeholder }: RichTextEditorProps) => {
+export const RichTextEditor = memo(({
+  initialHTML,
+  onChange,
+  placeholder,
+  variant = 'full',
+}: RichTextEditorProps) => {
+  const [imageDialogOpen, setImageDialogOpen] = useState(false)
+
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' }
-      }),
-    ],
+    extensions: buildExtensions(variant, placeholder),
     content: initialHTML,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
   })
 
-  useEffect(() => {
-    return () => {
-      editor?.destroy()
-    }
+  // Counts live on editor storage, which only changes on transactions — so
+  // they have to be read through useEditorState, same as the toolbar.
+  const counts = useEditorState({
+    editor,
+    selector: ({ editor }) => ({
+      words: editor.storage.characterCount.words(),
+      characters: editor.storage.characterCount.characters(),
+    }),
+  })
+
+  const handleInsertImage = useCallback((payload: InsertImagePayload) => {
+    editor?.chain().focus().setImage({
+      src: payload.src,
+      ...(payload.alt ? { alt: payload.alt } : {}),
+    }).run()
+    setImageDialogOpen(false)
   }, [editor])
 
   return (
     <div className="rte">
-      <div className="rte__toolbar">
-        <button
-          type="button"
-          className={`rte__btn ${editor?.isActive('bold') ? 'rte__btn--active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run() }}
-          disabled={!editor}
-        >
-          B
-        </button>
-        <button
-          type="button"
-          className={`rte__btn rte__btn--italic ${editor?.isActive('italic') ? 'rte__btn--active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleItalic().run() }}
-          disabled={!editor}
-        >
-          I
-        </button>
-        <button
-          type="button"
-          className={`rte__btn rte__btn--underline ${editor?.isActive('underline') ? 'rte__btn--active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleUnderline().run() }}
-          disabled={!editor}
-        >
-          U
-        </button>
-        <div className="rte__divider" />
-        <button
-          type="button"
-          className={`rte__btn ${editor?.isActive('bulletList') ? 'rte__btn--active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run() }}
-          disabled={!editor}
-        >
-          ≡
-        </button>
-        <button
-          type="button"
-          className={`rte__btn ${editor?.isActive('orderedList') ? 'rte__btn--active' : ''}`}
-          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleOrderedList().run() }}
-          disabled={!editor}
-        >
-          1.
-        </button>
-        <div className="rte__divider" />
-        <button
-          type="button"
-          className="rte__btn"
-          onMouseDown={e => {
-            e.preventDefault()
-            const url = window.prompt('Enter URL')
-            if (url) editor?.chain().focus().setLink({ href: url }).run()
-          }}
-          disabled={!editor}
-        >
-          🔗
-        </button>
-        <button
-          type="button"
-          className="rte__btn"
-          onMouseDown={e => {
-            e.preventDefault()
-            editor?.chain().focus().unsetLink().run()
-          }}
-          disabled={!editor}
-        >
-          ✂
-        </button>
-      </div>
-      <EditorContent
-        editor={editor}
-        className="rte__content"
-        placeholder={placeholder}
-      />
+      {editor && (
+        <RichTextToolbar
+          editor={editor}
+          variant={variant}
+          onRequestImage={() => setImageDialogOpen(true)}
+        />
+      )}
+
+      <EditorContent editor={editor} className="rte__content" />
+
+      {counts && (
+        <div className="rte__footer">
+          <span className="hint">
+            {counts.words} {counts.words === 1 ? 'word' : 'words'} · {counts.characters} characters
+          </span>
+        </div>
+      )}
+
+      {imageDialogOpen && (
+        <ImageDialog
+          onInsert={handleInsertImage}
+          onClose={() => setImageDialogOpen(false)}
+        />
+      )}
     </div>
   )
 })

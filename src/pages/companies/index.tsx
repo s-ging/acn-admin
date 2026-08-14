@@ -3,18 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
-import { normalizeCompany } from '../../lib/companies/normalize'
+import { loadCompanies } from '../../lib/companies/storage'
 import type { CompanyFull, CompanyStatus } from '../../types/company.types'
-
-function loadCompanies(): CompanyFull[] {
-  return Object.keys(localStorage)
-    .filter(k => k.startsWith('acn_company_'))
-    .map(k => {
-      try { return normalizeCompany(JSON.parse(localStorage.getItem(k) || '') as CompanyFull) }
-      catch { return null }
-    })
-    .filter(Boolean) as CompanyFull[]
-}
 
 type SortField = 'name_en' | 'updated_at' | 'id'
 type SortDir = 'asc' | 'desc'
@@ -248,9 +238,15 @@ export default function CompaniesListPage() {
           </>
         }
         actions={
-          <Button variant="primary" size="sm" onClick={handleNewCompany}>
-            + New company
-          </Button>
+          <>
+            {/* Until there's a nav rail, the two list pages link to each other. */}
+            <Button variant="outline" size="sm" onClick={() => navigate('/article')}>
+              Press releases
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleNewCompany}>
+              + New company
+            </Button>
+          </>
         }
       />
 

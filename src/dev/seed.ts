@@ -1,3 +1,4 @@
+import { ALL_SEED_ARTICLES } from '../lib/press-releases/mock'
 import type { CompanyFull } from '../types/company.types'
 
 export const SEED_COMPANY: CompanyFull = {
@@ -1010,7 +1011,12 @@ export function seedLocalStorage(): void {
   ALL_SEED_COMPANIES.forEach(company => {
     localStorage.setItem(`acn_company_${company.id}`, JSON.stringify(company))
   })
-  console.info(`[ACN seed] Seeded ${ALL_SEED_COMPANIES.length} companies`)
+  ALL_SEED_ARTICLES.forEach(article => {
+    localStorage.setItem(`acn_article_${article.id}`, JSON.stringify(article))
+  })
+  console.info(
+    `[ACN seed] Seeded ${ALL_SEED_COMPANIES.length} companies and ${ALL_SEED_ARTICLES.length} press releases`
+  )
 }
 
 export function clearSeed(): void {

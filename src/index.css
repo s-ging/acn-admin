@@ -35,6 +35,9 @@
   --border-radius-lg: 6px;
 
   --panel-width: 280px;
+  /* The press release sidebar is half the working surface, not a strip of
+     metadata like the company one — see .article-panel. */
+  --panel-width-article: 500px;
   --topbar-height: 48px;
   --tabbar-height: 40px;
 

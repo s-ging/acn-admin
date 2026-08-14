@@ -3,6 +3,7 @@ import { useCompanyStore } from '../../../store/company.store'
 import { useUIStore } from '../../../store/ui.store'
 import { Button } from '../../ui/Button'
 import { ContextMenu } from '../../ui/ContextMenu'
+import { LanguageDot } from '../../ui/LanguageDot'
 import { SECTORS, SECTOR_TYPES, getSectorsByType } from '../../../lib/sectors'
 import { applySectorRouting } from '../../../lib/sector-routing'
 import {
@@ -25,11 +26,6 @@ function CopyIcon() {
       <path d="M3 12C2.175 12 1.5 11.325 1.5 10.5V3C1.5 2.175 2.175 1.5 3 1.5H10.5C11.325 1.5 12 2.175 12 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
-}
-
-function LanguageDot({ state }: { state: LanguageState }) {
-  const modifier = state === 'primary' ? 'active' : state === 'secondary' ? 'partial' : 'off'
-  return <span className={`lang-dot lang-dot--${modifier}`} />
 }
 
 export const MetadataPanel = memo(() => {

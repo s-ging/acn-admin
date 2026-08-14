@@ -77,6 +77,7 @@ const BasicInfoTab = memo(function BasicInfoTab() {
           subtitle="Shown at the bottom of every press release the company releases."
           html={draft.about_html}
           onChange={html => update({ about_html: html })}
+          variant="basic"
         />
       </section>
 
@@ -86,6 +87,7 @@ const BasicInfoTab = memo(function BasicInfoTab() {
           subtitle={'Shown when "Show Extended" is enabled. Appended after the main boilerplate on press release pages.'}
           html={null}
           onChange={html => update({ about_html: html })}
+          variant="basic"
         />
       </section>
 

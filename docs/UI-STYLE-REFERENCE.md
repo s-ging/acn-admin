@@ -51,6 +51,7 @@ All defined on `:root` in `index.css`. Always reference through `var()` — no r
 | `--text-xs` `--text-sm` `--text-md` `--text-lg` `--text-xl` `--text-xxl` | 10 / 14 / 16 / 18 / 24 / 32 px | Only `xs` and `sm` are used in practice |
 | `--text-spc-neg` | `-0.3px` | Body letter-spacing |
 | `--panel-width` | `280px` | Metadata sidebar |
+| `--panel-width-article` | `500px` | Press release sidebar — half the working surface, not a strip |
 | `--topbar-height` | `48px` | Editor topbar |
 
 > **Caution:** font sizes are frequently hard-coded (`13px`, `12px`, `11.5px`) rather than tokenised. The type scale above is aspirational; match the *neighbouring* component's literal size rather than forcing a token.
@@ -117,13 +118,30 @@ Same underline treatment, `min-height: 60px`, `resize: none`. Wrap in `.contact-
 
 ### 3.4 Rich text — `<RichTextEditor>` / `<AboutBlock>`
 
-For prose bodies. `<AboutBlock>` is the higher-level one: view/edit toggle, Edit → Cancel/Save buttons, keeps the editor mounted once opened.
+For prose bodies. `<AboutBlock>` is the higher-level one: view/edit toggle, Edit → Cancel/Save buttons, keeps the editor mounted once opened. Both take a **`variant`**:
+
+| Variant | Toolbar | Use for |
+|---|---|---|
+| `full` (default) | Headings, B/I/U/S, inline code, text alignment, lists, quote, code block, rule, link, **images**, **tables**, undo/redo, word count | A press release body |
+| `basic` | The same minus images and tables | A paragraph of boilerplate (company About, Custom About) |
 
 ```tsx
-<AboutBlock label="About the company" subtitle="Shown on the release footer" html={draft.about_html} onChange={html => update({ about_html: html })} />
+<AboutBlock label="About the company" html={draft.about_html} onChange={html => update({ about_html: html })} variant="basic" />
 ```
 
-`.rte` is a bordered box with `.rte__toolbar` (bold, italic, underline, lists, link) over `.rte__content` (min-height 120px, line-height 1.7). Backed by TipTap; stores HTML.
+The module is [`src/components/ui/rte/`](../src/components/ui/rte/) — `extensions.ts` (the extension set), `RichTextToolbar.tsx`, `ImageDialog.tsx` — behind the `RichTextEditor.tsx` entry point. Backed by TipTap v3; stores HTML.
+
+Anatomy: `.rte` wraps `.rte__toolbar` (+ `--secondary` for the second row) over an optional `.rte__context-bar`, then `.rte__content` (min-height 120px, line-height 1.7), then `.rte__footer` (word/character count). `.rte__btn` is a toolbar button, `.rte__select` the block-type picker, `.rte__divider` the separator.
+
+Three things to know before changing it:
+
+1. **`useEditor` does not re-render on transactions in v3** (`shouldRerenderOnTransaction` defaults to `false`). Any toolbar state read as `editor.isActive(...)` during render goes stale. Read it through `useEditorState` with a selector instead — the toolbar does.
+2. **StarterKit v3 already bundles Link and Underline.** Configure them through `StarterKit.configure({ link: … })`; adding the packages alongside it registers each extension twice.
+3. **Image alignment is `data-align`, not `text-align`.** TextAlign writes `text-align` onto the node it targets, and `text-align` on an `<img>` centres nothing. `AlignableImage` adds a `data-align` attribute that CSS turns into auto margins.
+
+**Styling rich content:** every content rule is written against **both** `.rte__content .ProseMirror` and `.about-block__body`. They render the same stored HTML — one editing, one read-only — so a rule applied to only one makes saved content change appearance the moment you stop editing it. Add to both or neither.
+
+Images uploaded through `<ImageDialog>` are inlined as base64 data URLs and capped at 1MB, deliberately tighter than `LogoUpload`'s 3MB: several of them plus the article JSON have to fit inside the ~5MB localStorage quota. Linking by URL is offered first and has no cap.
 
 ### 3.5 Boxed select — `.metadata-status-select`
 
@@ -149,9 +167,25 @@ Dashed-border drop target that also opens a file picker on click. `--active` on 
 
 40×22 pill switch, `--on` fills with primary and slides the thumb. Boolean settings only; defined in `DistributionTab` as a local component, not shared — lift it if you need it.
 
-### 3.11 Tri-state dot — `.lang-dot`
+### 3.11 Tri-state dot — `.lang-dot` / `<LanguageDot>`
 
 Click-to-cycle dot with `--active` (green) / `--partial` (black) / `--off` (outline). See [`src/lib/languages.ts`](../src/lib/languages.ts) for the state model and the tooltip/context-menu pattern that documents it.
+
+[`<LanguageDot state>`](../src/components/ui/LanguageDot.tsx) maps a `LanguageState` onto the right modifier. Both metadata panels use it; don't re-derive the class name locally.
+
+### 3.12 Boxed input — `.metadata-input`
+
+The text-input twin of `.metadata-status-select`: full width, padded, bordered, grey fill, border darkens to primary on focus. **Sidebar only** — the canvas uses the underlined `<Field>`. Reach for this whenever a free-text field sits in a metadata panel.
+
+### 3.13 Date and time — `<DateTimeField>`
+
+[`src/components/ui/DateTimeField.tsx`](../src/components/ui/DateTimeField.tsx). Wraps a native `<input type="datetime-local">` styled as `.metadata-input`, so there is a real date control with no new dependency.
+
+```tsx
+<DateTimeField label="Date" value={draft.published_at} onChange={iso => update({ published_at: iso })} hint="Local time. Stored as UTC." />
+```
+
+The input speaks local wall-clock time; `value` / `onChange` speak ISO. Both conversions live inside the component — callers only ever handle ISO or `null`.
 
 ---
 
@@ -192,7 +226,14 @@ Used by `ContactsTab`, `IdentifiersTab`, `DistributionTab`. Because pattern A is
 | `.contact-card` | Bordered container for an inline add/edit form |
 | `.contact-form` + `__divider` + `__actions` | Form body, hairline rule, button row |
 | `.metadata-panel` + `__section` + `__divider` | 280px right sidebar |
+| `.article-panel` + `__title` | 500px right sidebar, press release editor. Same `__section` rows inside |
+| `.meta-group` + `__header` / `__chevron` / `__body` | Collapsible section of a panel — see `<CollapsibleGroup>` below |
+| `.metadata-field--derived` | Read-only treatment for a computed field: dashes the `.input-box` / `.chip` inside it and greys the text |
+| `.translation-row` + `__link` / `__empty` | Language + link (or "Add link +") row |
 | `.editor-topbar` / `.editor-body` / `.editor-main` / `.editor-canvas` | Page shell; canvas is the scroll container, 24px padding |
+| `.company-editor` / `.article-editor` | Full-height flex column root. One shared rule — add to the selector list rather than copying it |
+
+**`<CollapsibleGroup title meta defaultOpen>`** ([source](../src/components/ui/CollapsibleGroup.tsx)) — the only collapsible section in the codebase. The body **unmounts** when closed, so uncontrolled inputs inside re-read from the draft on the way back in. `meta` is an optional right-aligned `.hint` in the header (a count, a derived value).
 
 Vertical rhythm in a tab: sections 24px apart, rows 24px apart when stacked (`marginTop: 24`), fields 32px apart horizontally. Inline `style` for one-off spacing is common and accepted.
 
@@ -209,15 +250,29 @@ Vertical rhythm in a tab: sections 24px apart, rows 24px apart when stacked (`ma
 </div>
 ```
 
-Existing templates: `.identifiers-listing-grid` (7 cols), `.identifiers-code-grid` (3 cols), `.sectors-grid`. **Define a new grid class rather than inlining `gridTemplateColumns`.** Cells truncate with ellipsis by default. `.data-table__secondary` greys a cell; `.data-table__delete` / `__edit` are the trailing icon buttons (wrap both in `.data-table__row-actions`); `.data-table__inline-form` is the expanded edit row.
+Existing templates: `.identifiers-listing-grid` (7 cols), `.identifiers-code-grid` (3 cols), `.issuer-grid` (5 cols, sidebar scale), `.sectors-grid`.
+
+`.issuer-grid` + `.issuer-table` is the **sidebar-scale** variant: same `.data-table` bones at 12px with tighter padding, used for the companies on a press release (crown · 16px logo · name · ID · remove). `.company-avatar--xs` is the 16px logo/initials mark. Reach for this shape when a panel needs a real table rather than chips. **Define a new grid class rather than inlining `gridTemplateColumns`.** Cells truncate with ellipsis by default. `.data-table__secondary` greys a cell; `.data-table__delete` / `__edit` are the trailing icon buttons (wrap both in `.data-table__row-actions`); `.data-table__inline-form` is the expanded edit row.
 
 **`.empty-state`** — bordered, centred, 48px padding, for a table with no rows. Every tab currently redefines its own `EmptyState` + inlined SVG; that duplication is a known wart.
+
+**`.chip` / `<Chip>` / `<ChipList>`** ([source](../src/components/ui/Chip.tsx)) — the compact many-to-many display, for when a `.data-table` is too heavy: a short label in a bordered grey pill, with an optional `×`.
+
+```tsx
+<ChipList empty="No additional companies.">
+  {companies.map(c => <Chip key={c.id} label={c.name_en} onRemove={() => remove(c.id)} />)}
+</ChipList>
+```
+
+Omit `onRemove` for a read-only chip — that is how derived values render. `<ChipList>` supplies `.chip-list__empty` text when there is nothing to show. Adding is conventionally a `.metadata-status-select` underneath whose first option reads `+ Add …` and which resets itself after each pick.
 
 **`.badge`** — see the warning in §9 before using.
 
 **`.status-dot`** — 8px dot, `--active` green / `--paused` black.
 
-**`.companies-table`** — the only real `<table>`, list page only.
+**`.companies-*`** — the **generic list-page shell**, despite the name; treat it the way you treat `commit-*` for modals. `.companies-page` (full-height column) → `.companies-toolbar` (search, filter select, Columns dropdown) → `.companies-table-wrap` (scrolls) → `.companies-table` (the only real `<table>` in the codebase) → `.companies-footer`. `.companies-empty` is the no-rows state. Both the companies list and the press release list at `/article` are built from it — don't fork a second copy for a third list.
+
+Conventions the two share, worth matching in any new list: the first column is the record name at 13px/500 over a `.hint.monospace` identifier, and it cycles name asc → name desc → id on click; secondary text columns use `.sectors-cell` (12px, ellipsised); a missing value is an em dash in `--color-text-tertiary`.
 
 ---
 
@@ -276,7 +331,16 @@ Verified by auditing `ui.css` against `index.css`. Avoid these; don't copy them 
 | `--color-background-accent`, `--color-text-accent` | `.avatar-color-4` | Avatar renders unstyled |
 | `--border-radius-SM` | `.company-avatar` | Typo for `-sm`; square corners |
 
-**`<Badge>` variants don't exist in CSS.** The component's union is `success | danger | warning | info | neutral`, but `ui.css` only defines `.badge--active`, `.badge--draft`, `.badge--inactive`. **Any `<Badge variant="success">` renders unstyled.** The list page sidesteps this with a raw `` className={`badge badge--${company.status}`} ``. Before using `<Badge>` for press-release status, either add the missing variant classes or align the union to the status values.
+**`<Badge>`'s variants still don't exist in CSS.** The component's union is `success | danger | warning | info | neutral`, but `ui.css` defines classes named after *statuses*, not severities. **Any `<Badge variant="success">` renders unstyled.**
+
+What is defined, and works, is the raw `` className={`badge badge--${status}`} `` form both list pages use:
+
+| Defined | For |
+|---|---|
+| `.badge--active` / `.badge--draft` / `.badge--inactive` | Company status |
+| `.badge--published` / `.badge--scheduled` / `.badge--archived` | Press release status (`draft` is shared) |
+
+So a status badge is safe today; `<Badge>` itself is not. Fixing it means aligning the component's union to these status values or adding severity classes — don't reach for `<Badge>` until one of those happens.
 
 **Classes used but never defined:**
 
@@ -305,6 +369,8 @@ Use `.section-header__title` for a section heading — it is the defined one (14
 | Single-line text in an add/edit form | `<Field>` + local state (pattern B) |
 | Dropdown in a tab or form | `.field` + `.label.field` + `.field__select` |
 | Dropdown in the sidebar | `.metadata-status-select` |
+| Single-line text in the sidebar | `.metadata-input` |
+| A date, with or without a time | `<DateTimeField>` |
 | Multi-line text | `.contact-form__textarea` |
 | Prose / formatted body | `<AboutBlock>` |
 | Read-only value | `.input-box` (`--row` with an action) |
@@ -313,6 +379,9 @@ Use `.section-header__title` for a section heading — it is the defined one (14
 | Boolean | `.toggle` |
 | Two/three fields side by side | `.field-row field-row--2` / `--3` |
 | List of records | `.data-table` + a new grid-template class |
+| A short many-to-many (tags, related records) | `<ChipList>` + `<Chip>` |
+| A value computed from something else | `.metadata-field--derived` around a read-only `.input-box` / chips |
+| A panel section that opens and closes | `<CollapsibleGroup>` |
 | No records yet | `.empty-state` |
 | Heading + action buttons | `.section-header` |
 | Dialog | `commit-overlay` / `commit-dialog` shell |
@@ -323,12 +392,20 @@ Use `.section-header__title` for a section heading — it is the defined one (14
 
 ## 11. Gaps — nothing exists for these yet
 
-Relevant to the press-release interface; each needs a new style built in the idiom above, not an ad-hoc one:
+Each needs a new style built in the idiom above, not an ad-hoc one:
 
-- **Date / time input** — no styled date control anywhere. Dates are plain `<Field>`s with `e.g. 1971/02/01` placeholders and no picker or validation.
-- **Multi-select / chips** — every many-to-many relationship currently renders as a `.data-table` with a delete icon. There is no tag or chip style.
-- **Headline-scale text input** — the largest input is 14px. A press-release headline field probably wants more presence; `h1` is 20px/400.
-- **Character counter** — nothing exists.
-- **Scheduling / embargo** — no date-time pairing, timezone display, or "publish at" affordance.
-- **Working `<Badge>` variants** — see §9; press-release status will need these.
-- **Shared `EmptyState`** — currently copy-pasted per tab with an inlined 3KB SVG.
+- **Headline-scale text input** — the largest input is 14px. The press release headline field probably wants more presence; `h1` is 20px/400. Currently a plain `<Field>`.
+- **Character counter** — exists inside the RTE footer only (`.rte__footer`, from TipTap's CharacterCount). There is still nothing for a plain `<Field>`.
+- **Embargo** — `<DateTimeField>` covers "publish at", but there is still no embargo/until pairing and no timezone display: the control shows local time and stores UTC with no label saying so beyond a `hint`.
+- **Working `<Badge>` variants** — see §9. The status *classes* now cover both record types; the `<Badge>` component's severity union is still unbacked.
+- **Shared `EmptyState`** — currently copy-pasted per tab with an inlined 3KB SVG. `.chip-list__empty` covers the one-line case only.
+Closed since the last revision, by the press release editor:
+
+| Was a gap | Now |
+|---|---|
+| Date / time input | `<DateTimeField>` (§3.13) |
+| Multi-select / chips | `<Chip>` / `<ChipList>` (§6) |
+| Collapsible sections | `<CollapsibleGroup>` (§5) |
+| Boxed sidebar text input | `.metadata-input` (§3.12) |
+| Inline images in rich text | `<ImageDialog>` + `AlignableImage` (§3.4) |
+| Tables in rich text | TipTap `TableKit`, with a contextual table bar (§3.4) |
