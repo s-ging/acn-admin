@@ -2148,3 +2148,25 @@
   font-size: 12px;
   color: var(--color-text-tertiary);
 }
+
+/* Spreadsheet view — the Univer surface on /companies/sheet. The engine sizes
+   its canvas against .sheet-canvas, so that element needs a settled height
+   before it mounts; the page is a flex column for exactly that reason. */
+.sheet-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.sheet-statusbar { display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 0.5px solid var(--color-border-tertiary); flex-shrink: 0; }
+.sheet-canvas { flex: 1; min-height: 0; }
+.sheet-rejections { flex-shrink: 0; max-height: 160px; overflow-y: auto; padding: 10px 20px; background: var(--color-background-danger); border-bottom: 0.5px solid var(--color-border-danger); }
+.sheet-rejections ul { margin: 6px 0 0; padding-left: 16px; font-size: var(--text-sm); line-height: 1.6; }
+.sheet-rejections li { color: var(--color-text-primary); }
+.sheet-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 100vh; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.sheet-loading__spinner { width: 20px; height: 20px; border: 2px solid var(--color-border-tertiary); border-top-color: var(--color-text-primary); border-radius: 50%; animation: sheet-spin 0.7s linear infinite; }
+@keyframes sheet-spin { to { transform: rotate(360deg); } }
+
+/* Univer centres both header rows — the ribbon tab strip and the toolbar — which
+   reads as a title bar rather than a toolbar. Left-align them so the sheet looks
+   like a tool.
+   Targeted structurally on purpose: each row is the first div inside a direct div
+   child of <header>, while the ~39 icon buttons deeper in the header are also
+   `justify-center` and must stay centred inside their own boxes. Univer ships no
+   semantic class here, so this is coupled to its DOM — re-check on upgrade. */
+.sheet-canvas header > div > div:first-child { justify-content: flex-start; }

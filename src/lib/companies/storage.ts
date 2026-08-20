@@ -25,3 +25,23 @@ export function loadCompany(id: string | number | null): CompanyFull | null {
   try { return normalizeCompany(JSON.parse(stored) as CompanyFull) }
   catch { return null }
 }
+
+/**
+ * Writes a company back under its key. The spreadsheet view commits through
+ * here so the sheet and the record editor stay pointed at the same records;
+ * when the SQL Server API lands this is the single function that changes.
+ */
+export function saveCompany(company: CompanyFull): void {
+  localStorage.setItem(`${PREFIX}${company.id}`, JSON.stringify(company))
+}
+
+/** The next free company id, matching how the list page allocates one. */
+export function nextCompanyId(): number {
+  const ids = Object.keys(localStorage)
+    .filter(k => k.startsWith(PREFIX))
+    .map(k => {
+      const parsed = parseInt(k.slice(PREFIX.length), 10)
+      return isNaN(parsed) ? 0 : parsed
+    })
+  return (ids.length > 0 ? Math.max(...ids) : 999) + 1
+}

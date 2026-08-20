@@ -167,9 +167,16 @@ export default function ArticlesListPage() {
           </>
         }
         actions={
-          <Button variant="primary" size="sm" onClick={() => navigate('/article/new')}>
-            + New press release
-          </Button>
+          <>
+            {/* The sheet is an alternative surface onto these same records —
+                same data, different interface, for bulk edits a form is bad at. */}
+            <Button variant="outline" size="sm" onClick={() => navigate('/article/sheet')}>
+              Spreadsheet view
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => navigate('/article/new')}>
+              + New press release
+            </Button>
+          </>
         }
       />
 
