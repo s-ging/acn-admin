@@ -3,58 +3,82 @@ import { useNavigate } from 'react-router-dom'
 import { useArticleStore } from '../../store/article.store'
 import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
-import { loadArticles } from '../../lib/press-releases/storage'
-import { loadCompanies } from '../../lib/companies/storage'
-import type { PressRelease, ArticleStatus } from '../../types/press-release.types'
+import { BackToTop } from '../../components/ui/BackToTop'
+import { AlphabetIndex } from '../../components/ui/AlphabetIndex'
+import { ColumnFilter } from '../../components/ui/ColumnFilter'
+import { initialOf } from '../../lib/list/alphabet'
+import { filterOptions, passesFilter } from '../../lib/list/filters'
+import { Pagination } from '../../components/ui/Pagination'
+import { SyncStatus } from '../../components/ui/SyncStatus'
+import { SectionNav } from '../../components/ui/SectionNav'
+import { useArticlePage, useArticleTotal, useRefreshRecords } from '../../hooks/useRecords'
+import type { PressRelease } from '../../types/press-release.types'
 
 // The list-page shell (.companies-page, .companies-table, …) is generic despite
 // the name — same convention as the commit-* modal shell.
 
 type SortField = 'headline' | 'published_at' | 'id'
 type SortDir = 'asc' | 'desc'
-type StatusFilter = 'all' | ArticleStatus
 
 interface ColumnVisibility {
   status: boolean
   company: boolean
   classification: boolean
+  /** The wire tags every release with a language; it is worth filtering on. */
+  language: boolean
   region: boolean
   published: boolean
 }
 
-const STATUS_LABELS: Record<StatusFilter, string> = {
-  all: 'All statuses',
-  draft: 'Draft',
-  scheduled: 'Scheduled',
-  published: 'Published',
-  archived: 'Archived',
-}
+// One request's worth of releases. The server caps a page at 100; 50 keeps the
+// table quick to scan and the round trip short.
+const PAGE_SIZE = 50
+
 
 export default function ArticlesListPage() {
   const navigate = useNavigate()
   const setOriginal = useArticleStore(s => s.setOriginal)
 
-  const [articles] = useState<PressRelease[]>(() => loadArticles())
+  // Releases come off the ACN Newswire API a page at a time — there are 78,874
+  // of them, so unlike companies this list cannot hold the lot. Anything drafted
+  // here is folded into every page. The API is read-only, so "+ New press
+  // release" still writes locally.
+  const [page, setPage] = useState(1)
+  const { data, isLoading, isFetching, error: queryError } = useArticlePage({ page, size: PAGE_SIZE })
+  // The total is a separate query: discovering it costs ~10 requests because the
+  // API publishes no count, and it changes far more slowly than a page does.
+  const { data: total } = useArticleTotal()
+  const refresh = useRefreshRecords()
+  // Memoised for the same reason as `companies` on the companies list.
+  const articles: PressRelease[] = useMemo(() => data?.records ?? [], [data])
+  const apiError = data?.error ?? (queryError as Error | null)
+
+  const [letter, setLetter] = useState<string | null>(null)
+  const [statusSel, setStatusSel] = useState<string[]>([])
+  const [sectorSel, setSectorSel] = useState<string[]>([])
+  const [issuerSel, setIssuerSel] = useState<string[]>([])
+  const [langSel, setLangSel] = useState<string[]>([])
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sortField, setSortField] = useState<SortField>('published_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [columns, setColumns] = useState<ColumnVisibility>({
     status: true,
     company: true,
     classification: true,
-    region: true,
+    language: true,
+    region: false,
     published: true,
   })
   const [colDropdownOpen, setColDropdownOpen] = useState(false)
   const colDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Releases store company ids; the list shows names.
-  const companyNames = useMemo(() => {
-    const map = new Map<number, string>()
-    loadCompanies().forEach(c => map.set(c.id, c.name_en))
-    return map
-  }, [])
+  // Releases store company ids; the list shows names. The API sends the name on
+  // each row, so they arrive with the records — see ArticleListResult.
+  const companyNames = useMemo(
+    () => data?.companyNames ?? new Map<number, string>(),
+    [data]
+  )
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -103,34 +127,85 @@ export default function ArticlesListPage() {
     return others > 0 ? `${issuer} +${others}` : issuer
   }
 
-  const filtered = articles
-    .filter(a => {
-      if (statusFilter !== 'all' && a.status !== statusFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
+  // The issuer name each release is filed under — the value the issuer filter
+  // and the A–Z index both key on.
+  const issuerName = (article: PressRelease) =>
+    article.primary_issuer_id !== null
+      ? companyNames.get(article.primary_issuer_id) ?? null
+      : null
+
+  // Filter menus are built from the page in hand, because that is all the wire
+  // gave us. See the note by the search box.
+  const statusOptions = useMemo(() => filterOptions(articles, a => a.status), [articles])
+  const sectorOptions = useMemo(
+    () => filterOptions(articles, a => [a.sector_type, ...a.industries].filter(Boolean) as string[]),
+    [articles]
+  )
+  const issuerOptions = useMemo(
+    () => filterOptions(articles, issuerName),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [articles, companyNames]
+  )
+  const langOptions = useMemo(() => filterOptions(articles, a => a.languages), [articles])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+
+    const rows = articles.filter(a => {
+      if (!passesFilter(statusSel, a.status)) return false
+      if (!passesFilter(sectorSel, [a.sector_type, ...a.industries].filter(Boolean) as string[])) return false
+      if (!passesFilter(issuerSel, issuerName(a))) return false
+      if (!passesFilter(langSel, a.languages)) return false
+      if (letter && initialOf(a.headline) !== letter) return false
+      if (q) {
         return (
           a.headline.toLowerCase().includes(q) ||
           a.article_id.toLowerCase().includes(q) ||
           (a.subheadline?.toLowerCase().includes(q) ?? false) ||
-          (companyLabel(a)?.toLowerCase().includes(q) ?? false) ||
+          (issuerName(a)?.toLowerCase().includes(q) ?? false) ||
           String(a.id).includes(q)
         )
       }
       return true
     })
-    .sort((a, b) => {
+
+    return rows.sort((a, b) => {
       const mult = sortDir === 'asc' ? 1 : -1
-      if (sortField === 'headline') {
-        return mult * a.headline.localeCompare(b.headline)
-      }
-      if (sortField === 'id') {
-        return mult * (a.id - b.id)
-      }
+      if (sortField === 'headline') return mult * a.headline.localeCompare(b.headline)
+      if (sortField === 'id') return mult * (a.id - b.id)
       // Unpublished releases sort last on the way down, first on the way up.
       const av = a.published_at ?? ''
       const bv = b.published_at ?? ''
       return mult * (av > bv ? 1 : av < bv ? -1 : 0)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articles, companyNames, search, statusSel, sectorSel, issuerSel, langSel, letter, sortField, sortDir])
+
+  const availableLetters = useMemo(
+    () => new Set(articles.map(a => initialOf(a.headline))),
+    [articles]
+  )
+
+  // A new page starts at the top.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [page])
+
+  const resetFilters = () => {
+    setSearch('')
+    setLetter(null)
+    setStatusSel([])
+    setSectorSel([])
+    setIssuerSel([])
+    setLangSel([])
+  }
+
+  const filtersActive =
+    !!search || letter !== null || statusSel.length > 0 || sectorSel.length > 0 ||
+    issuerSel.length > 0 || langSel.length > 0
+
+  /** Total pages, once the total is known. Null while it is still being discovered. */
+  const totalPages = typeof total === 'number' ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null
 
   const formatDate = (iso: string | null) => {
     if (!iso) return '—'
@@ -154,18 +229,7 @@ export default function ArticlesListPage() {
   return (
     <div className="companies-page">
       <Topbar
-        breadcrumb={
-          <>
-            <span
-              style={{ cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-              onClick={() => navigate('/companies')}
-            >
-              Home
-            </span>
-            {' › '}
-            <span style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>Press Releases</span>
-          </>
-        }
+        breadcrumb={<SectionNav current="articles" />}
         actions={
           <>
             {/* The sheet is an alternative surface onto these same records —
@@ -184,21 +248,17 @@ export default function ArticlesListPage() {
         <input
           className="field__input"
           type="text"
-          placeholder="Search press releases..."
+          placeholder="Search this page..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ width: '150px' }}
+          style={{ width: '180px' }}
         />
 
-        <select
-          className="toolbar-select"
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-        >
-          {(['all', 'draft', 'scheduled', 'published', 'archived'] as StatusFilter[]).map(s => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </select>
+        {filtersActive && (
+          <Button variant="outline" size="sm" onClick={resetFilters}>
+            Clear filters
+          </Button>
+        )}
 
         <div style={{ position: 'relative' }} ref={colDropdownRef}>
           <button className="toolbar-select-btn" onClick={() => setColDropdownOpen(o => !o)}>
@@ -211,6 +271,7 @@ export default function ArticlesListPage() {
                   ['status', 'Status'],
                   ['company', 'Primary issuer'],
                   ['classification', 'Classification'],
+                  ['language', 'Language'],
                   ['region', 'Region'],
                   ['published', 'Published'],
                 ] as [keyof ColumnVisibility, string][]
@@ -228,13 +289,33 @@ export default function ArticlesListPage() {
           )}
         </div>
 
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-          {filtered.length} {filtered.length === 1 ? 'release loaded' : 'releases loaded'}
-        </span>
+        {/* Search and the column filters run over the page in hand, not the whole
+            wire: 78,874 releases cannot be held in the browser, and the API's own
+            search endpoint is exact-match only (see endpoints.ts). Companies are
+            different — the whole set is loaded there, so its filters are global. */}
+        <SyncStatus
+          origin={data?.origin}
+          syncedAt={data?.syncedAt ?? null}
+          busy={isFetching}
+          onRefresh={() => refresh('articles')}
+        />
       </div>
 
-      <div className="companies-table-wrap">
-        {filtered.length === 0 ? (
+      <AlphabetIndex available={availableLetters} value={letter} onChange={setLetter} />
+
+      {apiError && (
+        <div className="companies-notice companies-notice--error">
+          Could not reach the newswire API — showing {data?.origin === 'cache' ? 'the last synced copy of this page' : 'locally saved releases only'}.
+          <span className="hint"> {apiError.message}</span>
+        </div>
+      )}
+
+      <div className="companies-table-wrap" ref={scrollRef}>
+        {isLoading ? (
+          <div className="companies-empty">
+            <span>Loading press releases from the newswire…</span>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="companies-empty">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
@@ -259,9 +340,38 @@ export default function ArticlesListPage() {
                     ? (sortDir === 'asc' ? ' ↑' : ' ↓')
                     : ' ↕'}
                 </th>
-                {columns.status && <th>Status</th>}
-                {columns.company && <th>Primary issuer</th>}
-                {columns.classification && <th>Classification</th>}
+                {columns.status && (
+                  <th>
+                    <span className="th__inner">
+                      Status
+                      <ColumnFilter label="Status" options={statusOptions} selected={statusSel} onChange={setStatusSel} />
+                    </span>
+                  </th>
+                )}
+                {columns.company && (
+                  <th>
+                    <span className="th__inner">
+                      Primary issuer
+                      <ColumnFilter label="Issuer" options={issuerOptions} selected={issuerSel} onChange={setIssuerSel} />
+                    </span>
+                  </th>
+                )}
+                {columns.classification && (
+                  <th>
+                    <span className="th__inner">
+                      Classification
+                      <ColumnFilter label="Sector" options={sectorOptions} selected={sectorSel} onChange={setSectorSel} />
+                    </span>
+                  </th>
+                )}
+                {columns.language && (
+                  <th>
+                    <span className="th__inner">
+                      Language
+                      <ColumnFilter label="Language" options={langOptions} selected={langSel} onChange={setLangSel} />
+                    </span>
+                  </th>
+                )}
                 {columns.region && <th>Region</th>}
                 {columns.published && (
                   <th
@@ -313,6 +423,15 @@ export default function ArticlesListPage() {
                         )}
                       </td>
                     )}
+                    {columns.language && (
+                      <td>
+                        {article.languages.length > 0 ? (
+                          <span className="label monospace">{article.languages.join(', ')}</span>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>
+                        )}
+                      </td>
+                    )}
                     {columns.region && (
                       <td>
                         {article.region ? (
@@ -338,11 +457,30 @@ export default function ArticlesListPage() {
         )}
       </div>
 
+      <BackToTop targetRef={scrollRef} resetKey={page} />
+
       <div className="companies-footer">
         <span>
-          Showing {filtered.length} of {articles.length}{' '}
-          {articles.length === 1 ? 'press release' : 'press releases'}
+          {typeof total === 'number' ? (
+            <>
+              <strong>{total.toLocaleString()}</strong> press releases
+            </>
+          ) : (
+            <>Counting press releases…</>
+          )}
+          <span className="hint">
+            {' '}· {filtered.length}
+            {filtersActive ? ` of ${articles.length}` : ''} on this page
+          </span>
         </span>
+
+        <Pagination
+          page={page}
+          onPage={setPage}
+          totalPages={totalPages}
+          hasMore={data?.hasMore}
+          busy={isFetching}
+        />
       </div>
     </div>
   )

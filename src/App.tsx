@@ -4,6 +4,8 @@ import CompaniesListPage from './pages/companies/index'
 import CompanyEditorPage from './pages/companies/CompanyEditorPage'
 import ArticlesListPage from './pages/articles/index'
 import ArticleEditorPage from './pages/articles/ArticleEditorPage'
+import EventsListPage from './pages/events/index'
+import EventDetailPage from './pages/events/EventDetailPage'
 import ModalPreview from './components/dev/ModalPreview'
 import { ToastContainer } from './components/ui/Toast'
 
@@ -62,6 +64,8 @@ export default function App() {
         />
         {/* /article/new generates an id, writes a blank record and redirects */}
         <Route path="/article/:id" element={<ArticleEditorPage />} />
+        <Route path="/events" element={<EventsListPage />} />
+        <Route path="/events/:id" element={<EventDetailPage />} />
         <Route path="/dev" element={<ModalPreview />} />
       </Routes>
       <ToastContainer />
