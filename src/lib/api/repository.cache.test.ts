@@ -58,10 +58,15 @@ function stubWire(options: { companies?: number; articles?: number }) {
   const requests: string[] = []
 
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
-    const url = new URL(String(input))
+    // The client now emits a same-origin path (/wire/api/...) in a browser-like
+    // environment, so this needs a base to resolve against and has to match on
+    // the tail of the path rather than the whole of it. Resolving here rather
+    // than pinning an absolute base in the client keeps the tests exercising the
+    // same URL construction the app uses.
+    const url = new URL(String(input), 'http://test.local')
     requests.push(url.pathname + url.search)
 
-    const isCompanies = url.pathname === '/api/Companies'
+    const isCompanies = url.pathname.endsWith('/api/Companies')
     const total = (isCompanies ? options.companies : options.articles) ?? 0
     const page = Number(url.searchParams.get('Page') ?? 1)
     const size = Number(url.searchParams.get('Size') ?? PAGE_SIZE)

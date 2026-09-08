@@ -13,12 +13,22 @@
 //   types.ts       — the wire shapes, hand-written: the spec declares no
 //                    response schemas.
 //   media.ts       — image filenames → URLs.
-//   client.ts      — fetch, base URL, ApiError.
+//   client.ts      — fetch, base URL, ApiError. Requests go through this
+//                    origin's /wire proxy, never straight at the API — the
+//                    API's CORS is an allowlist. See resolveBaseUrl there.
 //
 // The one fact worth repeating: every operation in the spec is a GET. There is
 // no write path, so editing still goes to localStorage.
 
-export { API_BASE_URL, ApiError, apiGet, setAuthToken } from './client'
+export {
+  API_PROXY_PREFIX,
+  API_UPSTREAM_URL,
+  ApiError,
+  apiGet,
+  getApiBaseUrl,
+  setApiBaseUrl,
+  setAuthToken,
+} from './client'
 export type { QueryValue } from './client'
 
 export * from './endpoints'

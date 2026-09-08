@@ -343,10 +343,21 @@ export default function CompaniesListPage() {
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
-            <span>No companies match your search.</span>
-            {filtersActive && (
+            {/* Three genuinely different empty states. Saying "no matches" when
+                the wire is unreachable and nothing is cached sends people to
+                check their search terms for a problem that isn't there. */}
+            <span>
+              {companies.length === 0 && apiError
+                ? 'No companies to show — the newswire could not be reached and nothing is cached yet.'
+                : companies.length === 0
+                  ? 'No companies yet.'
+                  : 'No companies match your search.'}
+            </span>
+            {companies.length === 0 && apiError ? (
+              <Button variant="outline" size="sm" onClick={() => refresh('companies')}>Try again</Button>
+            ) : filtersActive ? (
               <Button variant="outline" size="sm" onClick={resetFilters}>Clear filters</Button>
-            )}
+            ) : null}
           </div>
         ) : (
           <table className="companies-table">

@@ -322,10 +322,15 @@ export default function ArticlesListPage() {
               <path d="m21 21-4.35-4.35" />
             </svg>
             <span>
-              {articles.length === 0
-                ? 'No press releases yet.'
-                : 'No press releases match your search.'}
+              {articles.length === 0 && apiError
+                ? 'No press releases to show — the newswire could not be reached and nothing is cached yet.'
+                : articles.length === 0
+                  ? 'No press releases yet.'
+                  : 'No press releases match your search.'}
             </span>
+            {articles.length === 0 && apiError && (
+              <Button variant="outline" size="sm" onClick={() => refresh('articles')}>Try again</Button>
+            )}
           </div>
         ) : (
           <table className="companies-table">

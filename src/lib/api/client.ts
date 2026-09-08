@@ -11,13 +11,84 @@
 //   2. None of the 200 responses declare a schema, so the types in ./types.ts
 //      are hand-written from the live responses rather than generated. Treat
 //      them as a best-effort record of what the server actually sends.
+//
+// And one thing about the *transport*: requests do not go to the API's hostname
+// from the browser. They go to this origin's /wire path, which the dev server
+// and the deployment both proxy upstream. The API's CORS is an allowlist, so a
+// direct call works from one whitelisted localhost port and nowhere else. See
+// `resolveBaseUrl`.
 
-/** Overridable so a deployment can point at staging or production. */
-const DEFAULT_BASE_URL = 'https://development.acnnewswire.com'
+/**
+ * The wire itself. Only ever called directly from Node — see `resolveBaseUrl`.
+ *
+ * Kept in step with the `/wire` proxy target in vite.config.ts and the rewrite
+ * destination in vercel.json. All three name the same upstream.
+ */
+const UPSTREAM_URL = 'https://development.acnnewswire.com'
 
-export const API_BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ||
-  DEFAULT_BASE_URL
+/**
+ * The same-origin path that proxies to the wire.
+ *
+ * Configured in two places, one per environment: `server.proxy` in
+ * vite.config.ts for dev, and a `rewrites` entry in vercel.json for the
+ * deployment. Both forward /wire/* to the upstream with the prefix stripped, so
+ * /wire/api/Companies reaches /api/Companies.
+ *
+ * Not `/api`, deliberately: Vercel treats a top-level /api path as its
+ * serverless functions directory, and a rewrite that collides with that
+ * convention is a trap for whoever adds the first function.
+ */
+export const API_PROXY_PREFIX = '/wire'
+
+/**
+ * Where requests go.
+ *
+ * WHY A PROXY AT ALL: the API's CORS is an allowlist, not a wildcard. An origin
+ * on the list gets an `access-control-allow-origin` header back; every other
+ * origin gets none and the browser blocks the response. `http://localhost:5173`
+ * is on it, `http://localhost:5174` is not, and neither is any deployed origin —
+ * which is why the app worked locally and showed nothing once deployed.
+ *
+ * Asking for each new domain to be added upstream does not scale to preview
+ * deployments, and it puts shipping behind someone else's config change. Going
+ * through the app's own origin removes the question: the browser makes a
+ * same-origin request, the server forwards it, and server-to-server traffic has
+ * no CORS.
+ *
+ * Three cases, in order:
+ *
+ *   VITE_API_BASE_URL set — an explicit override wins. Note that pointing it
+ *     straight at the wire re-introduces the CORS problem, so it is for a
+ *     different proxy or a local mock, not for the upstream URL.
+ *   in a browser — the proxy prefix, i.e. same-origin.
+ *   in Node — the upstream directly. Tests and scripts have no proxy in front
+ *     of them and no CORS to worry about.
+ */
+function resolveBaseUrl(): string {
+  const configured = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+  if (configured) return configured.replace(/\/+$/, '')
+  if (typeof window !== 'undefined') return API_PROXY_PREFIX
+  return UPSTREAM_URL
+}
+
+let baseUrl: string = resolveBaseUrl()
+
+export function getApiBaseUrl(): string {
+  return baseUrl
+}
+
+/**
+ * Points the client somewhere else at runtime.
+ *
+ * For scripts and one-off verification against the live wire, where there is no
+ * proxy to go through. Application code should not need this.
+ */
+export function setApiBaseUrl(url: string): void {
+  baseUrl = url.replace(/\/+$/, '')
+}
+
+/** The upstream, for anything that needs to name it (docs, diagnostics). */
+export const API_UPSTREAM_URL = UPSTREAM_URL
 
 /**
  * A failed call. Carries the status so callers can tell "no such record" (404)
@@ -69,7 +140,7 @@ export async function apiGet<T>(
   params?: Record<string, QueryValue>,
   signal?: AbortSignal
 ): Promise<T> {
-  const url = `${API_BASE_URL}${path}${buildQuery(params)}`
+  const url = `${baseUrl}${path}${buildQuery(params)}`
 
   let response: Response
   try {
@@ -84,7 +155,7 @@ export async function apiGet<T>(
   } catch (err) {
     // A rejected fetch is a network/CORS failure, which has no status of its own.
     if (err instanceof DOMException && err.name === 'AbortError') throw err
-    throw new ApiError(0, url, `Could not reach the API at ${API_BASE_URL}.`)
+    throw new ApiError(0, url, `Could not reach the API at ${baseUrl || 'this origin'}.`)
   }
 
   if (!response.ok) {

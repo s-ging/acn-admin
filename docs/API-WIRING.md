@@ -81,13 +81,99 @@ Nothing waits on it. The releases list renders immediately and the footer fills
 the total in when it arrives, so a page shows "Counting press releases…" only on
 a genuinely cold start.
 
-## Dev server port
+## Working and validating with the API off
 
-`vite.config.ts` pins port 5173 with `strictPort`. The API's CORS is an
-**allowlist, not an echo**: `http://localhost:5173` gets an
-`access-control-allow-origin` header and `http://localhost:5174` gets none. Vite
-would otherwise quietly move to the next free port and every request would fail
-CORS — a symptom that looks nothing like "wrong port".
+The API runs on an Azure VM that gets switched off. When it is off, Cloudflare
+answers **522** and then stops answering at all — and because a Cloudflare error
+page carries no CORS headers either, the browser reports it with the *same*
+message as a genuine CORS block. So "No 'Access-Control-Allow-Origin' header is
+present" means either "the proxy is misconfigured" or "the VM is off", and the
+console cannot tell you which.
+
+### `npm run validate`
+
+Separates them, by looking at what comes back rather than whether it worked:
+
+| Response | Means |
+| --- | --- |
+| JSON array | Proxy good, API up. |
+| **HTML** | Proxy **not applied** — the SPA catch-all answered. The `/wire` rewrite is missing, or is ordered after `/(.*)` in `vercel.json`. |
+| 502 / 504 / 522 | Proxy good, API down. The request *was* forwarded. **With the VM off, this is the expected pass.** |
+| nothing | The origin itself is unreachable. |
+
+So the proxy can be validated with the API off, which is the whole point:
+
+```
+npm run validate                                   # a local dev server
+npm run validate -- --url https://your.vercel.app  # the deployment
+```
+
+When the API is up it goes further and confirms it is really the wire on the
+other end: the `Size<=100` cap returning 400, deep pages (page 90) answering,
+events responding, and whether `GET /api/Events/{id}` is still broken.
+
+### `npm run dev:mock`
+
+A local stand-in for the wire, so the app can be developed and demonstrated with
+the VM off. `mock/server.mjs` is zero-dependency and seeded from
+`mock/fixtures.json` — **real** responses captured from the live host, trimmed
+but not reshaped — then cycled with renumbered ids up to the real collection
+sizes (9,439 / 78,874 / 839), so paging boundaries, the total-count search and
+the caching all meet the volumes they were built for.
+
+It reproduces the wire's quirks deliberately, including the `Size` cap, the 500
+on `GET /api/Events/{id}`, `""` and `" "` for absent strings, the organiser
+repeated up to 168 times on one event, offsetless dates, and **no CORS headers**
+— so going straight at it from a browser fails exactly as the real one does.
+
+`dev:mock` points the *proxy target* at the mock, not the app's base URL: the
+browser still calls `/wire`, so the proxy path stays exercised. Pointing the app
+straight at the mock would validate the app while skipping the thing that broke
+in production.
+
+It is not a replica. Because records are cycled to reach the real totals,
+anything derived from a *proportion* is off — 89 of 839 events read as
+unpublished against 23 on the real wire. Counts, boundaries and per-record shapes
+are faithful; ratios are not.
+
+Nothing in `src/` imports `mock/`, and `tsconfig.app.json` only includes `src`,
+so none of this reaches the production bundle.
+
+## The browser never calls the API directly
+
+The API's CORS is an **allowlist, not a wildcard**. An origin on the list gets an
+`access-control-allow-origin` header back; every other origin gets none and the
+browser blocks the response. `http://localhost:5173` was on it,
+`http://localhost:5174` was not, and no deployed origin is — which is why the app
+worked locally and rendered nothing on Vercel.
+
+Asking for each new domain to be added upstream does not scale to preview
+deployments and puts shipping behind someone else's config change. So requests
+go through the app's own origin instead: the browser makes a same-origin request
+to `/wire/*`, the server forwards it, and server-to-server traffic has no CORS.
+
+Three places have to agree, all naming the same upstream:
+
+| | What it does |
+| --- | --- |
+| `vercel.json` | Rewrites `/wire/:path*` → `https://development.acnnewswire.com/:path*`. **Must come before** the SPA catch-all — rewrites match in order, and `/(.*)` would otherwise swallow it and serve `index.html`. |
+| `vite.config.ts` | `server.proxy` does the same for dev, with `changeOrigin` so the Host header matches for TLS/SNI. |
+| `src/lib/api/client.ts` | `resolveBaseUrl()`: an explicit `VITE_API_BASE_URL` wins, else a browser uses `/wire`, else (Node — tests, scripts) the upstream directly, where there is no CORS. |
+
+`/wire` rather than `/api` deliberately: Vercel treats a top-level `/api` path as
+its serverless functions directory, and a rewrite colliding with that convention
+is a trap for whoever adds the first function.
+
+**Do not set `VITE_API_BASE_URL` to the upstream URL.** It overrides the proxy
+and re-introduces the exact failure — see `.env.example`.
+
+Two consequences worth knowing:
+
+- The dev port no longer matters, so the `strictPort` pin has been removed. It
+  existed only because the allowlist made port 5173 special.
+- If the rewrite order were ever broken, `/wire/api/Companies` would return the
+  SPA's `index.html` with a 200. `apiGet` rejects a non-JSON 200 rather than
+  parsing it as data, and there is a test for that.
 
 ## The two facts that shaped everything
 
@@ -313,4 +399,9 @@ Two are **unverified guesses** in the house style, marked as such in
   also used for "no phone".
 - **Auth**: the spec declares a `Bearer` JWT scheme, but the dev host serves all
   reads without one. `setAuthToken` is there for when that changes.
-- **CORS** already allows `http://localhost:5173` (Vite's default port).
+- **CORS is an allowlist.** See the section above; the app proxies around it.
+- **The host goes down.** Observed returning Cloudflare **522** (origin
+  unreachable) from every origin including server-side with no `Origin` header.
+  A 522 error page carries no CORS headers either, so an outage and a CORS block
+  produce the *same* console message — check whether the API answers at all
+  before assuming CORS.

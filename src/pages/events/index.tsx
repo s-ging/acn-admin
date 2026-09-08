@@ -262,10 +262,18 @@ export default function EventsListPage() {
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
-            <span>No events match your search.</span>
-            {filtersActive && (
+            <span>
+              {events.length === 0 && apiError
+                ? 'No events to show — the newswire could not be reached and nothing is cached yet.'
+                : events.length === 0
+                  ? 'No events yet.'
+                  : 'No events match your search.'}
+            </span>
+            {events.length === 0 && apiError ? (
+              <Button variant="outline" size="sm" onClick={() => refresh('events')}>Try again</Button>
+            ) : filtersActive ? (
               <Button variant="outline" size="sm" onClick={resetFilters}>Clear filters</Button>
-            )}
+            ) : null}
           </div>
         ) : (
           <table className="companies-table">
