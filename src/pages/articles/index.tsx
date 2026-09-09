@@ -4,9 +4,9 @@ import { useArticleStore } from '../../store/article.store'
 import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
 import { BackToTop } from '../../components/ui/BackToTop'
-import { AlphabetIndex } from '../../components/ui/AlphabetIndex'
+import { CalendarFilter } from '../../components/ui/CalendarFilter'
 import { ColumnFilter } from '../../components/ui/ColumnFilter'
-import { initialOf } from '../../lib/list/alphabet'
+import { dayCounts, dayKeyOf, inDayRange, type DayRange } from '../../lib/list/dates'
 import { filterOptions, passesFilter } from '../../lib/list/filters'
 import { Pagination } from '../../components/ui/Pagination'
 import { SyncStatus } from '../../components/ui/SyncStatus'
@@ -53,7 +53,9 @@ export default function ArticlesListPage() {
   const articles: PressRelease[] = useMemo(() => data?.records ?? [], [data])
   const apiError = data?.error ?? (queryError as Error | null)
 
-  const [letter, setLetter] = useState<string | null>(null)
+  // Releases are indexed by publication date, not by headline initial — see the
+  // note at the top of <CalendarFilter>. Null means every date.
+  const [dates, setDates] = useState<DayRange | null>(null)
   const [statusSel, setStatusSel] = useState<string[]>([])
   const [sectorSel, setSectorSel] = useState<string[]>([])
   const [issuerSel, setIssuerSel] = useState<string[]>([])
@@ -128,7 +130,7 @@ export default function ArticlesListPage() {
   }
 
   // The issuer name each release is filed under — the value the issuer filter
-  // and the A–Z index both key on.
+  // and the search box both key on.
   const issuerName = (article: PressRelease) =>
     article.primary_issuer_id !== null
       ? companyNames.get(article.primary_issuer_id) ?? null
@@ -156,7 +158,7 @@ export default function ArticlesListPage() {
       if (!passesFilter(sectorSel, [a.sector_type, ...a.industries].filter(Boolean) as string[])) return false
       if (!passesFilter(issuerSel, issuerName(a))) return false
       if (!passesFilter(langSel, a.languages)) return false
-      if (letter && initialOf(a.headline) !== letter) return false
+      if (!inDayRange(dayKeyOf(a.published_at), dates)) return false
       if (q) {
         return (
           a.headline.toLowerCase().includes(q) ||
@@ -179,10 +181,12 @@ export default function ArticlesListPage() {
       return mult * (av > bv ? 1 : av < bv ? -1 : 0)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articles, companyNames, search, statusSel, sectorSel, issuerSel, langSel, letter, sortField, sortDir])
+  }, [articles, companyNames, search, statusSel, sectorSel, issuerSel, langSel, dates, sortField, sortDir])
 
-  const availableLetters = useMemo(
-    () => new Set(articles.map(a => initialOf(a.headline))),
+  // How many releases sit on each day of this page — the numbers the calendar
+  // dims its empty days by.
+  const dateCounts = useMemo(
+    () => dayCounts(articles, a => dayKeyOf(a.published_at)),
     [articles]
   )
 
@@ -193,7 +197,7 @@ export default function ArticlesListPage() {
 
   const resetFilters = () => {
     setSearch('')
-    setLetter(null)
+    setDates(null)
     setStatusSel([])
     setSectorSel([])
     setIssuerSel([])
@@ -201,7 +205,7 @@ export default function ArticlesListPage() {
   }
 
   const filtersActive =
-    !!search || letter !== null || statusSel.length > 0 || sectorSel.length > 0 ||
+    !!search || dates !== null || statusSel.length > 0 || sectorSel.length > 0 ||
     issuerSel.length > 0 || langSel.length > 0
 
   /** Total pages, once the total is known. Null while it is still being discovered. */
@@ -301,7 +305,7 @@ export default function ArticlesListPage() {
         />
       </div>
 
-      <AlphabetIndex available={availableLetters} value={letter} onChange={setLetter} />
+      <CalendarFilter counts={dateCounts} value={dates} onChange={setDates} />
 
       {apiError && (
         <div className="companies-notice companies-notice--error">

@@ -1,0 +1,568 @@
+{
+  "page": "Company",
+  "route": "/company/[id]?page=N",
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl (no Next fetch cache involved)",
+  "consumedBy": [
+    "src/services/company-profile.ts",
+    "src/services/company-articles.ts",
+    "src/app/company/[id]/page.tsx"
+  ],
+  "note": "Long strings in every `actual` sample are truncated at 300 chars with a marker. Credentials the API returns publicly are redacted here - see C-M7.",
+  "endpoints": [
+    {
+      "id": "CO-PROFILE",
+      "role": "primary - drives the name, logo, boilerplate, sectors, tickers and contacts",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Companies/{id}",
+      "probedWith": [
+        "82 (MHI - rich)",
+        "574 (HKTDC - 20 contacts)",
+        "14 (Umetal - sparse)",
+        "9453 (TruMerit)"
+      ],
+      "expected": {
+        "source": "interface ApiCompany - src/services/company-profile.ts",
+        "httpStatus": 200,
+        "shape": {
+          "companyId": "number",
+          "companyName": "string | null (optional)",
+          "companyNameEN": "string | null (optional) - read as an alternative spelling",
+          "companyNameCH": "string | null",
+          "companyNameCT": "string | null",
+          "companyNameJP": "string | null",
+          "companyNameKO": "string | null",
+          "logoFilename": "string | null",
+          "topLogoFilename": "string | null",
+          "boilerPlate": "string | null",
+          "extBoilerPlate": "string | null",
+          "url": "string | null",
+          "sectors": "(string | { sectorName?: string | null })[] | null   <- KEY `sectorName`",
+          "tickers": "[{ exchangeId, exchangeName, tickerId, isin }] | null",
+          "contacts": "[{ contactName, contactPhone, contactEmail }] | null",
+          "bloomberg": "(string | { code? , bloombergCode? })[] | null   - \"shape unverified, read defensively\""
+        }
+      },
+      "actual": {
+        "httpStatus": 200,
+        "notFoundStatus": "404 for an unknown id (probed 99999999) - correct",
+        "topLevelKeys": [
+          "companyId",
+          "companyName",
+          "companyName2",
+          "companyNameJP",
+          "companyNameCH",
+          "companyNameCT",
+          "companyNameKO",
+          "ticker",
+          "url",
+          "boilerPlate",
+          "sectorId",
+          "topLogoFilename",
+          "logoFilename",
+          "username",
+          "password",
+          "allowAccess",
+          "blog",
+          "facebook",
+          "twitter",
+          "youTube",
+          "linkedIn",
+          "telegram",
+          "rss",
+          "bloomberg",
+          "sectors",
+          "tickers",
+          "contacts",
+          "page",
+          "size",
+          "sort1",
+          "ord1"
+        ],
+        "undeclaredKeys": [
+          "companyName2",
+          "ticker",
+          "sectorId",
+          "username",
+          "password",
+          "allowAccess",
+          "blog",
+          "facebook",
+          "twitter",
+          "youTube",
+          "linkedIn",
+          "telegram",
+          "rss",
+          "page",
+          "size",
+          "sort1",
+          "ord1"
+        ],
+        "declaredButNeverReturned": [
+          "companyNameEN",
+          "extBoilerPlate"
+        ],
+        "sample_82": {
+          "companyId": 82,
+          "companyName": "Mitsubishi Heavy Industries (MHI)",
+          "companyName2": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameJP": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameCH": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameCT": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameKO": "Mitsubishi Heavy Industries (MHI)",
+          "ticker": "",
+          "url": "www.mhi.com ",
+          "boilerPlate": "Mitsubishi Heavy Industries (MHI) Group (TSE: 7011; US: MHVYF) is one of the world&apos;s leading industrial firms. For more than 130 years, we have channeled big thinking into solutions that move the world forward - advancing the lives of everyone who shares our planet. We deliver innovative and in… [truncated, full length 1080]",
+          "sectorId": 186,
+          "topLogoFilename": "MHI_newT.jpg",
+          "logoFilename": "MHI_new.jpg",
+          "username": "<REDACTED - see C-M7>",
+          "password": "<REDACTED - see C-M7>",
+          "allowAccess": true,
+          "blog": "https://www.mhi.com/rss/",
+          "facebook": "https://www.facebook.com/mhi.ltd/",
+          "twitter": "https://twitter.com/MHI_Group",
+          "youTube": "https://www.youtube.com/user/DiscoverMHI",
+          "linkedIn": "https://www.linkedin.com/company/mitsubishi-heavy-industries/",
+          "telegram": "",
+          "rss": [],
+          "bloomberg": [
+            {
+              "compId": 82,
+              "id": 73,
+              "bloombergCode": "ASIA",
+              "name": "Asia, Pacific Rim"
+            },
+            {
+              "compId": 82,
+              "id": 354,
+              "bloombergCode": "COS",
+              "name": "Companies"
+            },
+            {
+              "compId": 82,
+              "id": 367,
+              "bloombergCode": "CST",
+              "name": "Construction & Engineering"
+            },
+            {
+              "compId": 82,
+              "id": 506,
+              "bloombergCode": "NRG",
+              "name": "Energy"
+            },
+            {
+              "compId": 82,
+              "id": 801,
+              "bloombergCode": "JAPAN",
+              "name": "Japan"
+            },
+            {
+              "compId": 82,
+              "id": 819,
+              "bloombergCode": "JPS",
+              "name": "Japanese Stock Market"
+            },
+            {
+              "compId": 82,
+              "id": 899,
+              "bloombergCode": "MAC",
+              "name": "Machinery, Manufacturing "
+            }
+          ],
+          "sectors": [
+            {
+              "compId": 82,
+              "id": 211,
+              "name": "Aerospace & Defence",
+              "description": "Aerospace & Defence"
+            },
+            {
+              "compId": 82,
+              "id": 190,
+              "name": "Alternative Energy",
+              "description": "Alt. Energy"
+            },
+            {
+              "compId": 82,
+              "id": 217,
+              "name": "Construct, Engineering",
+              "description": "Construction"
+            },
+            {
+              "compId": 82,
+              "id": 172,
+              "name": "Energy, Alternatives",
+              "description": "Energy (Oil/Gas)"
+            },
+            {
+              "compId": 82,
+              "id": 208,
+              "name": "Engineering",
+              "description": "Engineering"
+            },
+            {
+              "compId": 82,
+              "id": 252,
+              "name": "EVs, Transportation",
+              "description": null
+            },
+            {
+              "compId": 82,
+              "id": 253,
+              "name": "Smart Cities",
+              "description": null
+            }
+          ],
+          "tickers": [
+            {
+              "id": 9917,
+              "compId": 82,
+              "exchangeId": "OOTC",
+              "exchangeName": "OTC US",
+              "tickerId": "MHVIY",
+              "isin": ""
+            },
+            {
+              "id": 456,
+              "compId": 82,
+              "exchangeId": "XTKS",
+              "exchangeName": "Tokyo Stock Exchange",
+              "tickerId": "7011",
+              "isin": "JP3900000005"
+            },
+            {
+              "id": 457,
+              "compId": 82,
+              "exchangeId": "OOTC",
+              "exchangeName": "OTC US",
+              "tickerId": "MHVYF",
+              "isin": ""
+            },
+            {
+              "id": 8479,
+              "compId": 82,
+              "exchangeId": "XFRA",
+              "exchangeName": "Frankfurt Stock exchange",
+              "tickerId": "MIH",
+              "isin": ""
+            }
+          ],
+          "contacts": [
+            {
+              "contId": 2329,
+              "contactName": "kazuyo.takeda@jcnnewswire.com",
+              "contactPhone": " ",
+              "contactEmail": "kazuyo.takeda@jcnnewswire.com"
+            },
+            {
+              "contId": 774,
+              "contactName": "Kengo Tatsukawa",
+              "contactPhone": "81-3-6716-2168",
+              "contactEmail": "kengo_tatsukawa@mhi.co.jp"
+            },
+            {
+              "contId": 775,
+              "contactName": "Kenichi Nakamura",
+              "contactPhone": "81-3-6716-2168",
+              "contactEmail": "kenichi_nakamura@mhi.co.jp"
+            }
+          ],
+          "page": 1,
+          "size": 20,
+          "sort1": "",
+          "ord1": "ASC"
+        },
+        "shapeConsistency": "Identical key set on all 4 companies probed (82, 574, 14, 9453)."
+      }
+    },
+    {
+      "id": "CO-DETAILS",
+      "role": "secondary - fetched solely for the social links",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Companies/{id}/details",
+      "expected": {
+        "source": "interface ApiCompanyDetails - src/services/company-profile.ts",
+        "httpStatus": 200,
+        "shape": {
+          "established": "string",
+          "listed": "string",
+          "employees": "string",
+          "dunsNumber": "string",
+          "otc": "string",
+          "marketId": "string",
+          "urlJa": "string",
+          "blog": "string",
+          "facebook": "string",
+          "twitter": "string",
+          "linkedIn": "string",
+          "youTube": "string",
+          "telegram": "string",
+          "addr1": "string",
+          "addr2": "string",
+          "addr3": "string",
+          "addr4": "string",
+          "telephone": "string",
+          "facsimile": "string",
+          "email": "string"
+        }
+      },
+      "actual": {
+        "httpStatus": 200,
+        "sample_82": {
+          "established": "",
+          "listed": "",
+          "employees": "",
+          "dunsNumber": "",
+          "otc": "",
+          "marketId": "1",
+          "urlJa": "",
+          "blog": "https://www.mhi.com/rss/",
+          "facebook": "https://www.facebook.com/mhi.ltd/",
+          "twitter": "https://twitter.com/MHI_Group",
+          "linkedIn": "https://www.linkedin.com/company/mitsubishi-heavy-industries/",
+          "youTube": "https://www.youtube.com/user/DiscoverMHI",
+          "telegram": "",
+          "addr1": "",
+          "addr2": "",
+          "addr3": "",
+          "addr4": "",
+          "telephone": "",
+          "facsimile": "",
+          "email": "",
+          "pos1Name": "",
+          "pos1Desc": "CEO",
+          "pos2Name": "",
+          "pos2Desc": "CEO"
+        },
+        "undeclaredKeys": [
+          "pos1Name",
+          "pos1Desc",
+          "pos2Name",
+          "pos2Desc"
+        ],
+        "emptyOnEveryCompanySampled": [
+          "established",
+          "listed",
+          "employees",
+          "dunsNumber",
+          "otc",
+          "urlJa",
+          "telegram",
+          "addr1",
+          "addr2",
+          "addr3",
+          "addr4",
+          "telephone",
+          "facsimile",
+          "email"
+        ]
+      }
+    },
+    {
+      "id": "CO-FEED",
+      "role": "the press-release feed on the company page (PAGE_SIZE 15)",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Articles/by-company/{companyId}?pageNumber=N&pageSize=N",
+      "expected": {
+        "source": "interface NewApiArticle - src/services/acn-api.types.ts, mapped by mapArticle() in company-articles.ts",
+        "httpStatus": "200, or 404 past the last page",
+        "shape": {
+          "articleId": "number",
+          "headline": "string",
+          "publishDate": "string",
+          "summary": "string",
+          "hasImage": "boolean",
+          "hasFile": "boolean",
+          "imageUrl": "string | null (optional)",
+          "language": "string | null (optional)",
+          "sectorName": "string (optional)",
+          "companies": "[{ companyId | companyID, logoFilename | logoFileName, companyName, companyURL, companyNameCH/CT/JP/KO }]",
+          "images": "[{ thumbImage, bigImage, caption }]"
+        },
+        "codeComment": "CompanyArticle.language carries the comment \"by-company does not return a language field\"."
+      },
+      "actual": {
+        "httpStatus": 200,
+        "rowsReturned": 2,
+        "topLevelKeysPerRow": [
+          "articleId",
+          "headline",
+          "subHeadLine",
+          "body",
+          "bodyText",
+          "bodyHtml",
+          "publishDate",
+          "summary",
+          "sourceId",
+          "language",
+          "hasImage",
+          "hasFile",
+          "companies",
+          "images",
+          "sectors",
+          "topicName",
+          "sourceName"
+        ],
+        "sample_firstRow": {
+          "articleId": 109894,
+          "headline": "NEC and Mitsubishi Heavy Industries to Form Strategic Alliance to Further Strengthen and Transform Defense Capabilities",
+          "subHeadLine": "- Collaboration in areas such as operation plans, command and control, and unmanned assets -",
+          "body": null,
+          "bodyText": "NEC Corporation (NEC; TSE: 6701) and Mitsubishi Heavy Industries, Ltd. (TSE: 7011) have signed a memorandum of understanding (MOU) toward a strategic partnership in the defense sector. Through this partnership, the two companies will strengthen their collaboration in areas such as operation plans, c… [truncated, full length 3557]",
+          "bodyHtml": "<p><strong>TOKYO, September 8, 2026 - (JCN Newswire) -</strong> <a href=\"https://group.nec/global/en/\">NEC Corporation</a> (NEC; TSE: 6701) and Mitsubishi Heavy Industries, Ltd. (TSE: 7011) have signed a memorandum of understanding (MOU) toward a strategic partnership in the defense sector. Through … [truncated, full length 4050]",
+          "publishDate": "2026-09-08T22:00:00",
+          "summary": "NEC Corporation (NEC; TSE: 6701) and Mitsubishi Heavy Industries, Ltd. (TSE: 7011) have signed a memorandum of understanding (MOU) toward a strategic partnership in the defense sector.",
+          "sourceId": 3,
+          "language": "EN",
+          "hasImage": false,
+          "hasFile": false,
+          "companies": [
+            {
+              "companyID": 82,
+              "topLogoFileName": "MHI_newT.jpg",
+              "logoFileName": "MHI_new.jpg",
+              "companyURL": "www.mhi.com ",
+              "companyName": "Mitsubishi Heavy Industries (MHI)",
+              "sectorName": "Business",
+              "companyNameCH": "Mitsubishi Heavy Industries (MHI)",
+              "companyNameCT": "Mitsubishi Heavy Industries (MHI)",
+              "companyNameJP": "Mitsubishi Heavy Industries (MHI)",
+              "companyNameKO": "Mitsubishi Heavy Industries (MHI)"
+            },
+            {
+              "companyID": 86,
+              "topLogoFileName": "NEC.62.jpg",
+              "logoFileName": "NEC.240.jpg",
+              "companyURL": "www.nec.com",
+              "companyName": "NEC Corporation",
+              "sectorName": "Business",
+              "companyNameCH": "日本电气股份有限公司",
+              "companyNameCT": "NEC Corporation",
+              "companyNameJP": "NEC Corporation",
+              "companyNameKO": ""
+            }
+          ],
+          "images": [
+            {
+              "thumbImage": "",
+              "bigImage": "NEC-pic.jpg",
+              "caption": ""
+            }
+          ],
+          "sectors": [],
+          "topicName": null,
+          "sourceName": null
+        },
+        "companyKeySpelling": "companyID / logoFileName (the DETAIL spelling), not companyId / logoFilename"
+      }
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "C-M1",
+      "severity": "HIGH",
+      "field": "sectors[] element key",
+      "expected": "A plain string, or an object keyed `sectorName`.",
+      "actual": "An object keyed `name` (plus `compId`, `id`, `description`) - e.g. {\"compId\":82,\"id\":211,\"name\":\"Aerospace & Defence\",\"description\":\"Aerospace & Defence\"}. Confirmed identical on 574 and 9453.",
+      "impact": "buildIndustry() maps `s?.sectorName` over every element, gets null for all of them, and returns null. The Industry row on the company sidebar is therefore EMPTY for every company that has no curated entry - i.e. all but the 2 in src/data/company-profiles.ts. The API data is present and correct; the read is looking at the wrong key.",
+      "fix": "In buildIndustry(), read `s?.name ?? s?.sectorName`.",
+      "where": "src/services/company-profile.ts - buildIndustry(), and the ApiCompany.sectors declaration"
+    },
+    {
+      "id": "C-M2",
+      "severity": "medium",
+      "field": "socials source",
+      "expected": "Socials come only from /details, which is why a second request is made per company render.",
+      "actual": "/api/Companies/{id} ALREADY returns blog, facebook, twitter, youTube, linkedIn, telegram - the same six fields, with the same values as /details on company 82.",
+      "impact": "The /details request is redundant for socials. Its only other contribution is `otc` and the established/listed/employees trio, all of which came back empty on every company sampled. Dropping it would remove one HTTP request per company page.",
+      "where": "src/services/company-profile.ts - buildSocials(), and the getJsonOrNull call for /details"
+    },
+    {
+      "id": "C-M3",
+      "severity": "low",
+      "field": "companyNameEN",
+      "expected": "Declared and read as an alternative to companyName, described as \"the bug behind every company page rendering Company {id}\".",
+      "actual": "Never returned by the live endpoint. `companyName` is always populated (verified on 82, 574, 14, 9453).",
+      "impact": "None - the pick() fallback is harmless. The named bug is not reproducible today; company names resolve correctly.",
+      "where": "src/services/company-profile.ts - ApiCompany"
+    },
+    {
+      "id": "C-M4",
+      "severity": "low",
+      "field": "bloomberg[]",
+      "expected": "string | { code } | { bloombergCode } - \"shape unverified\".",
+      "actual": "VERIFIED: { compId, id, bloombergCode, name } - e.g. {\"bloombergCode\":\"CST\",\"name\":\"Construction & Engineering\"}. The defensive `bloombergCode` branch is correct.",
+      "impact": "Works, but `name` (the human-readable label) is discarded, so seven codes render as seven rows all labelled \"Bloomberg\": ASIA, COS, CST, NRG, JAPAN, JPS, MAC. Using `name` as the label would make the card readable.",
+      "where": "src/services/company-profile.ts - buildQuoteCodes()"
+    },
+    {
+      "id": "C-M5",
+      "severity": "low",
+      "field": "/details undeclared fields",
+      "expected": "20 declared fields.",
+      "actual": "Also returns pos1Name, pos1Desc, pos2Name, pos2Desc (officer name/title slots). On company 82: pos1Desc \"CEO\", pos2Desc \"CEO\", both names empty.",
+      "impact": "Unused data. Not a break.",
+      "where": "src/services/company-profile.ts - ApiCompanyDetails"
+    },
+    {
+      "id": "C-M6",
+      "severity": "low",
+      "field": "/api/Companies/{id} pagination echo",
+      "expected": "A single company object.",
+      "actual": "The object also carries page: 1, size: 20, sort1: \"\", ord1: \"ASC\" - list-endpoint parameters leaking into a single-entity response.",
+      "impact": "None. Cosmetic backend DTO issue.",
+      "where": "backend - acnnewswire-api"
+    },
+    {
+      "id": "C-M7",
+      "severity": "HIGH (security)",
+      "field": "username / password / allowAccess",
+      "expected": "Not part of the public contract.",
+      "actual": "Returned in plaintext on the UNAUTHENTICATED endpoint. Company 82 returns a real username and password pair.",
+      "impact": "Credential disclosure to anyone who can reach the API. Already logged in PROJECT-CONTEXT.toon security.findings; re-confirmed live on 2026-09-10 and still present. Values are redacted in this export.",
+      "fix": "Backend must strip these from the Companies DTO. Nothing the frontend can do.",
+      "where": "backend - acnnewswire-api, Companies DTO"
+    },
+    {
+      "id": "C-M8",
+      "severity": "medium",
+      "field": "by-company language",
+      "expected": "Code comment: \"by-company does not return a language field, so this is only populated on paths that have one - today that means search results.\"",
+      "actual": "It DOES return `language` (\"EN\" on both rows sampled). mapArticle() never reads it, so CompanyArticle.language stays undefined.",
+      "impact": "Language tags are suppressed on every row of every company feed even though the data is available. One line in mapArticle() would restore them.",
+      "where": "src/services/company-articles.ts - mapArticle(), CompanyArticle"
+    },
+    {
+      "id": "C-M9",
+      "severity": "low",
+      "field": "by-company extra fields",
+      "expected": "NewApiArticle (list shape): a trimmed row.",
+      "actual": "Returns the FULL article: body, bodyText, bodyHtml, subHeadLine, sourceId, sectors, topicName, sourceName as well. Two rows cost 20.5 KB.",
+      "impact": "A 15-row company page transfers roughly 150 KB where ~8 KB would do. No correctness issue, but the feed could render richer rows (subheadline, sectors) for free since the bytes already arrive.",
+      "where": "src/services/company-articles.ts - mapArticle()"
+    },
+    {
+      "id": "C-M10",
+      "severity": "low",
+      "field": "companies[].companyId spelling",
+      "expected": "NewApiArticle declares companyId/logoFilename for list endpoints and companyID/logoFileName for the detail endpoint, both optional as a defence.",
+      "actual": "by-company uses the DETAIL spelling: companyID / logoFileName.",
+      "impact": "None here - mapArticle() reads neither. Confirms the defensive both-spellings declaration is warranted.",
+      "where": "src/services/acn-api.types.ts"
+    }
+  ],
+  "verdict": {
+    "endpointHealth": "HEALTHY - all three endpoints return 200 with complete payloads; 404s correctly on unknown ids.",
+    "pageRenders": true,
+    "blockers": [],
+    "degraded": [
+      "Industry row blank on every non-curated company (C-M1 - a frontend key mismatch, fixable today)",
+      "Quote-code rows all labelled \"Bloomberg\" (C-M4)",
+      "Language tags missing from the release feed (C-M8)"
+    ],
+    "security": [
+      "C-M7 credentials exposed on a public endpoint - backend fix required"
+    ]
+  }
+}

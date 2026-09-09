@@ -1,0 +1,318 @@
+{
+  "page": "Events",
+  "routes": [
+    "/events (listing)",
+    "/events/[eventId] (detail - curated mock slugs OR live numeric ids)",
+    "/events/[eventId]/press-releases (orphan route)"
+  ],
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl (no Next fetch cache involved)",
+  "consumedBy": [
+    "src/services/events.ts",
+    "src/app/events/page.tsx",
+    "src/app/events/[eventId]/page.tsx",
+    "src/app/events/[eventId]/LiveEvent.tsx"
+  ],
+  "note": "Long strings in every `actual` sample are truncated at 300 chars with a marker. Everything else is verbatim.",
+  "headline": "The Events list endpoint has changed substantially since the 2026-09-08 capture: it now returns 7 upcoming events instead of 839 spanning 2007-2026, and compId is null on every one of them.",
+  "endpoints": [
+    {
+      "id": "EV-LIST",
+      "role": "the ONLY working way to read events - backs both fetchEvents() and fetchEvent()",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Events?pageNumber=N&pageSize=N",
+      "expected": {
+        "source": "interface AcnEvent - src/services/events.ts",
+        "httpStatus": 200,
+        "shape": {
+          "id": "number",
+          "startDate": "string",
+          "endDate": "string",
+          "description": "string",
+          "location": "string",
+          "url": "string",
+          "inUrl": "string",
+          "eventImage": "string",
+          "lid": "string",
+          "publish": "string",
+          "compId": "number | null",
+          "companies": "[{ companyID, companyName, logoFileName, topLogoFileName, companyURL }] | null"
+        },
+        "volume": "839 events (816 with publish=\"y\"), 2007-11-18 to 2026-12-02. Response ~2.65 MB because each event repeats its organiser once per release (one ships the same company 167 times).",
+        "pagination": "pageSize honoured, default 10. Code sweeps PAGE_SIZE=500 across up to MAX_PAGES=20 and stops on a short page.",
+        "caching": "Deliberately NOT cached at the fetch() call site - the 2.65 MB response exceeds Next's 2 MB cache ceiling, so unstable_cache wraps the MAPPED result (~233 KB after deduping)."
+      },
+      "actual": {
+        "httpStatus": 200,
+        "rowsReturned": 7,
+        "responseSize": "1991 bytes",
+        "ids": [
+          1104,
+          1115,
+          1126,
+          1124,
+          1109,
+          1110,
+          1119
+        ],
+        "dateRange": "2026-09-16 to 2026-12-02 (all future-dated as of 2026-09-10)",
+        "publishValues": [
+          "y"
+        ],
+        "compIdNullCount": 7,
+        "companiesEmptyCount": 7,
+        "paginationBehaviour": {
+          "no params": "7 rows",
+          "pageNumber=1&pageSize=10": "7 rows",
+          "pageNumber=1&pageSize=500": "7 rows",
+          "pageSize=1000": "7 rows",
+          "pageNumber=2&pageSize=500": "0 rows",
+          "conclusion": "pageSize is no longer meaningful - the endpoint returns its whole (now tiny) result set on page 1. The default-of-10 trap recorded in PROJECT-CONTEXT.toon no longer applies."
+        },
+        "allRows": [
+          {
+            "id": 1104,
+            "startDate": "2026-09-16T00:00:00",
+            "endDate": "2026-09-18T00:00:00",
+            "description": "WBE 2026",
+            "location": "Guangzhou, China",
+            "url": "en.battery-expo.com",
+            "inUrl": "",
+            "eventImage": "2026WBE160.jpg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          },
+          {
+            "id": 1115,
+            "startDate": "2026-10-07T00:00:00",
+            "endDate": "2026-10-08T00:00:00",
+            "description": "India Collection Summit",
+            "location": "Mumbai, India",
+            "url": "india.collectionsummit.com",
+            "inUrl": "",
+            "eventImage": "CreditCollections2026.jpg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          },
+          {
+            "id": 1126,
+            "startDate": "2026-10-13T00:00:00",
+            "endDate": "2026-10-13T00:00:00",
+            "description": "CDAO Perth 2026 ",
+            "location": "Perth, Western Australia",
+            "url": "cdao-perth.coriniumintelligence.com/",
+            "inUrl": "",
+            "eventImage": "2026CDAOPerth.jpg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          },
+          {
+            "id": 1124,
+            "startDate": "2026-10-21T00:00:00",
+            "endDate": "2026-10-22T00:00:00",
+            "description": "EnerGex 2026",
+            "location": "Kuala Lumpur, Malaysia",
+            "url": "www.energexasia.com",
+            "inUrl": "",
+            "eventImage": "Energex2026ACNNewswire.jpeg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          },
+          {
+            "id": 1109,
+            "startDate": "2026-11-04T00:00:00",
+            "endDate": "2026-11-05T00:00:00",
+            "description": "EDUtech Asia",
+            "location": "Singapore",
+            "url": "www.terrapinn.com/EDUtechAsia2026ACN",
+            "inUrl": "",
+            "eventImage": "ACN2Edutech.jpg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          },
+          {
+            "id": 1110,
+            "startDate": "2026-11-04T00:00:00",
+            "endDate": "2026-11-06T00:00:00",
+            "description": "Singapore Urban Mobility Week",
+            "location": "Singapore",
+            "url": "sgurbanmobility.com/?utm_source=mediapartner-acn-newswire&utm_medium=event-listing",
+            "inUrl": "",
+            "eventImage": "SUMWMediaPartnerEvent.jpg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          },
+          {
+            "id": 1119,
+            "startDate": "2026-12-02T00:00:00",
+            "endDate": "2026-12-04T00:00:00",
+            "description": "ceramics Vietnam 2026",
+            "location": "Vietnam",
+            "url": "aseanceramics.com/vietnam/",
+            "inUrl": "",
+            "eventImage": "stonevietnam.jpg",
+            "lid": "2",
+            "publish": "y",
+            "compId": null,
+            "companies": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "EV-DETAIL",
+      "role": "NOT USED - events.ts filters the list instead",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Events/{id}",
+      "expected": {
+        "httpStatus": 200,
+        "shape": "The same AcnEvent object as a list row."
+      },
+      "actual": {
+        "httpStatus": 500,
+        "brokenSince": "at least 2026-09-07",
+        "body": {
+          "message": "The required column 'Companies' was not present in the results of a 'FromSql' operation.",
+          "detail": "System.InvalidOperationException: The required column 'Companies' was not present in the results of a 'FromSql' operation.\r\n   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)\r\n   at Microsoft.EntityFramew… [truncated, full length 1488]"
+        },
+        "rootCause": "EF Core FromSql mapping: \"The required column 'Companies' was not present in the results of a 'FromSql' operation\" - EventService.cs:51, EventsController.cs:54"
+      }
+    },
+    {
+      "id": "EV-RELEASES",
+      "role": "the event -> press-release relation, keyed on organiser company + year",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Events/company/{companyId}/year/{year}",
+      "probedWith": [
+        "companyId=574 (HKTDC), year=2026"
+      ],
+      "expected": {
+        "source": "interface AcnEventRelease - src/services/events.ts",
+        "httpStatus": 200,
+        "shape": {
+          "articleId": "number",
+          "headline": "string",
+          "summary": "string | null",
+          "systemDate": "string",
+          "companyId": "number | null"
+        }
+      },
+      "actual": {
+        "httpStatus": 200,
+        "rowsReturned": 116,
+        "responseSize": "52972 bytes",
+        "shapeMatches": true,
+        "sample_firstRow": {
+          "articleId": 110008,
+          "headline": "The 11th Belt and Road Summit concludes successfully",
+          "summary": "The 11th Belt and Road Summit, co-organised by the Government of the Hong Kong Special Administrative Region and the Hong Kong Trade Development Council (HKTDC), concluded successfully.",
+          "systemDate": "2026-09-11T09:50:00",
+          "companyId": 2
+        },
+        "keysPerRow": [
+          "articleId",
+          "headline",
+          "summary",
+          "systemDate",
+          "companyId"
+        ]
+      }
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "E-M1",
+      "severity": "HIGH",
+      "field": "result set size",
+      "expected": "839 events (816 published) spanning 2007-11-18 to 2026-12-02, swept over up to 20 pages of 500.",
+      "actual": "7 events, all future-dated (2026-09-16 to 2026-12-02). Page 2 is empty. Confirmed across four different pageSize/pageNumber combinations.",
+      "impact": "The endpoint now appears to serve only current/upcoming events. Consequences: (a) /events lists 7 live rows plus the 4 curated mocks; (b) fetchEvent() resolves ONLY those 7 ids, so /events/<any historical id> now 404s - including every event id that was valid on 2026-09-08; (c) the PAGE_SIZE=500 / MAX_PAGES=20 sweep, the >2 MB cache-ceiling workaround and the unstable_cache-the-mapped-result design are all now sized for a payload that is 1,300x smaller.",
+      "openQuestion": "Is this an intentional backend change (upcoming-events-only) or data loss? Worth raising with the API team before reworking the sweep - the code is currently correct-but-oversized, which is the safe direction to be wrong in.",
+      "where": "src/services/events.ts - fetchRawEvents(), PAGE_SIZE, MAX_PAGES, loadEvents()"
+    },
+    {
+      "id": "E-M2",
+      "severity": "HIGH",
+      "field": "compId",
+      "expected": "The organiser company id - \"the key that relates an event to its releases\". fetchEventReleases(compId, year) depends on it.",
+      "actual": "null on all 7 events returned.",
+      "impact": "fetchEventReleases() returns [] immediately for every live event (its `if (!Number.isFinite(id) || id <= 0) return []` guard). Every API-backed event detail page therefore renders ZERO press releases. EV-RELEASES itself works fine (574/2026 returns 116 rows) - there is simply no longer any value to pass it.",
+      "where": "src/services/events.ts - mapEvent() compId, fetchEventReleases(), src/app/events/[eventId]/LiveEvent.tsx"
+    },
+    {
+      "id": "E-M3",
+      "severity": "HIGH",
+      "field": "companies[]",
+      "expected": "An array of organiser companies, repeated once per release - mapEvent() dedupes by companyID, and that dedupe is the reason the mapped result fits in the cache.",
+      "actual": "Empty array on all 7 events.",
+      "impact": "Event.companies is always [] so LiveEvent.tsx shows no organiser. The dedupe logic in mapEvent() is now a no-op, as is the whole cache-the-mapped-result rationale.",
+      "where": "src/services/events.ts - mapEvent(), mapCompany()"
+    },
+    {
+      "id": "E-M4",
+      "severity": "medium",
+      "field": "/api/Events/{id}",
+      "expected": "Would return a single event; events.ts notes \"Switch to /api/Events/{id} once the backend fixes that column.\"",
+      "actual": "STILL 500 on 2026-09-10, same EF Core Companies-column error as on 2026-09-07 and 2026-09-08. Three days further on with no fix.",
+      "impact": "The list-and-filter workaround in fetchEvent() is still required. Given E-M1, that workaround is now also what limits event detail pages to 7 ids.",
+      "where": "backend - acnnewswire-api EventService.cs:51"
+    },
+    {
+      "id": "E-M5",
+      "severity": "medium",
+      "field": "startDate / endDate",
+      "expected": "Date-only midnights with no offset (\"2009-07-16T00:00:00\") - gap EVT-02, no opening time or timezone on any record.",
+      "actual": "CONFIRMED unchanged: \"2026-09-16T00:00:00\" on all 7 rows, no offset, no Z.",
+      "impact": "The +08:00 stamp toEventIso() applies is still needed, and is still a display-honesty patch over missing data rather than a fact from the API.",
+      "where": "src/services/events.ts - toEventIso(), EVENT_TZ_OFFSET"
+    },
+    {
+      "id": "E-M6",
+      "severity": "low",
+      "field": "publish",
+      "expected": "A \"y\"/\"n\" flag; loadEvents() filters to publish === \"y\" (816 of 839).",
+      "actual": "\"y\" on all 7 rows - the filter now removes nothing.",
+      "impact": "None. Keep the filter; it costs nothing and the field still exists.",
+      "where": "src/services/events.ts - loadEvents()"
+    },
+    {
+      "id": "E-M7",
+      "severity": "low",
+      "field": "eventImage",
+      "expected": "A bare filename, prefixed to https://www.acnnewswire.com/eventimages/.",
+      "actual": "CONFIRMED - e.g. \"2026WBE160.jpg\" on all 7 rows.",
+      "impact": "That host is still NOT whitelisted in next.config.ts, so next/image would reject these. Unchanged pre-existing gap.",
+      "where": "src/services/events.ts - EVENT_IMAGE_BASE, next.config.ts"
+    },
+    {
+      "id": "E-M8",
+      "severity": "low",
+      "field": "event 1119",
+      "expected": "The only event mapped in src/data/event-article-mappings.json, backing the orphan /events/<id>/press-releases route.",
+      "actual": "Still present in the 7-row list (id 1119).",
+      "impact": "That route still resolves for its one mapped event. It remains orphaned - nothing links to it, because events.ts pins pressReleaseUrl to null.",
+      "where": "src/app/events/[eventId]/press-releases/page.tsx"
+    }
+  ],
+  "verdict": {
+    "endpointHealth": "DEGRADED - EV-LIST returns 200 but a drastically reduced result set; EV-DETAIL still 500s; EV-RELEASES healthy but now unreachable in practice.",
+    "pageRenders": true,
+    "blockers": [
+      "No live event can show its press releases (E-M2) - compId is null everywhere.",
+      "Historical event detail pages 404 (E-M1) - only 7 ids resolve."
+    ],
+    "unaffected": "The 4 curated /events/<slug> mock pages are served entirely from src/data/mock-events.ts and are untouched by all of the above."
+  }
+}

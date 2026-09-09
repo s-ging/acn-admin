@@ -20,6 +20,8 @@ type SortField = 'name_en' | 'updated_at' | 'id'
 type SortDir = 'asc' | 'desc'
 
 interface ColumnVisibility {
+  /** The wire's own company id — the number every other system files them under. */
+  id: boolean
   status: boolean
   primaryListing: boolean
   sectors: boolean
@@ -102,6 +104,7 @@ export default function CompaniesListPage() {
   const [sectorSel, setSectorSel] = useState<string[]>([])
   const [exchangeSel, setExchangeSel] = useState<string[]>([])
   const [columns, setColumns] = useState<ColumnVisibility>({
+    id: true,
     status: true,
     primaryListing: true,
     sectors: true,
@@ -208,15 +211,6 @@ export default function CompaniesListPage() {
     setPage(1)
   }
 
-  // Company name A→Z, then Z→A, then by id — the id being the way to see the
-  // newest records, since the wire gives no timestamps to sort on.
-  const handleCompanySort = () => {
-    if (sortField === 'name_en' && sortDir === 'asc') setSortDir('desc')
-    else if (sortField === 'name_en' && sortDir === 'desc') { setSortField('id'); setSortDir('asc') }
-    else { setSortField('name_en'); setSortDir('asc') }
-    setPage(1)
-  }
-
   const handleRowClick = (company: CompanyFull) => {
     setOriginal(company)
     navigate(`/companies/${company.id}`)
@@ -292,6 +286,7 @@ export default function CompaniesListPage() {
             <div className="col-dropdown">
               {(
                 [
+                  ['id', 'ID'],
                   ['status', 'Status'],
                   ['primaryListing', 'Primary listing'],
                   ['sectors', 'Sectors'],
@@ -363,14 +358,22 @@ export default function CompaniesListPage() {
           <table className="companies-table">
             <thead>
               <tr>
+                {/* The id sorts numerically, which on a wire with no creation
+                    timestamps is the only way to see the newest records — it
+                    used to be buried in a third click of the Company header. */}
+                {columns.id && (
+                  <th
+                    className={`companies-table__id${sortField === 'id' ? ' sorted' : ''}`}
+                    onClick={() => handleSort('id')}
+                  >
+                    ID{sortIcon('id')}
+                  </th>
+                )}
                 <th
-                  className={sortField === 'name_en' || sortField === 'id' ? 'sorted' : undefined}
-                  onClick={handleCompanySort}
+                  className={sortField === 'name_en' ? 'sorted' : undefined}
+                  onClick={() => handleSort('name_en')}
                 >
-                  {sortField === 'id' ? 'ID' : 'Company'}
-                  {sortField === 'name_en' || sortField === 'id'
-                    ? (sortDir === 'asc' ? ' ↑' : ' ↓')
-                    : ' ↕'}
+                  Company{sortIcon('name_en')}
                 </th>
                 {columns.status && (
                   <th>
@@ -430,6 +433,11 @@ export default function CompaniesListPage() {
 
                 return (
                   <tr key={company.id} onClick={() => handleRowClick(company)}>
+                    {columns.id && (
+                      <td className="companies-table__id">
+                        <span className="label monospace">#{company.id}</span>
+                      </td>
+                    )}
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {company.logo_article_url ? (
@@ -444,12 +452,7 @@ export default function CompaniesListPage() {
                             {initials}
                           </div>
                         )}
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{company.name_en}</div>
-                          <div className="hint monospace">
-                            #{company.id}
-                          </div>
-                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{company.name_en}</div>
                       </div>
                     </td>
                     {columns.status && (

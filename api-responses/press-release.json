@@ -1,0 +1,277 @@
+{
+  "page": "Press Release",
+  "route": "/article/[...segments]  ->  /article/<language>/<id>/<headline-slug>",
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl (no Next fetch cache involved)",
+  "consumedBy": [
+    "src/services/press-release.ts",
+    "src/services/acn-adapter.ts",
+    "src/app/article/[...segments]/page.tsx"
+  ],
+  "note": "Long strings in every `actual` sample are truncated at 300 chars with a marker. Everything else is verbatim.",
+  "endpoints": [
+    {
+      "id": "PR-PRIMARY",
+      "role": "primary - the page throws and 404s if this fails",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Articles/press-release/{artId}",
+      "probedWith": [
+        "106708 (Traditional Chinese, no image, 1 company)",
+        "109894 (English, 1 image, 2 companies)"
+      ],
+      "expected": {
+        "source": "interface NewApiPressRelease - src/services/acn-api.types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "articleId": "number",
+          "headline": "string",
+          "subHeadLine": "string | null",
+          "body": "string | null",
+          "bodyText": "string | null",
+          "bodyHtml": "string | null",
+          "publishDate": "string",
+          "summary": "string | null",
+          "sourceId": "number",
+          "hasImage": "boolean",
+          "hasFile": "boolean",
+          "sectorName": "string | null   (declared REQUIRED)",
+          "sectors": "string | null   - declared as a JSON-ENCODED STRING, e.g. \"[\\\"Engineering\\\"]\"",
+          "topicName": "string | null (optional)",
+          "sourceName": "string | null (optional)",
+          "language": "string | null (optional)",
+          "companies": [
+            {
+              "companyID": "number",
+              "topLogoFileName": "string | null",
+              "logoFileName": "string | null",
+              "companyURL": "string | null",
+              "companyName": "string | null",
+              "sectorName": "string | null",
+              "companyNameCH": "string | null",
+              "companyNameCT": "string | null",
+              "companyNameJP": "string | null",
+              "companyNameKO": "string | null"
+            }
+          ],
+          "images": [
+            {
+              "thumbImage": "string",
+              "bigImage": "string",
+              "caption": "string"
+            }
+          ]
+        }
+      },
+      "actual": {
+        "httpStatus": 200,
+        "notFoundStatus": "404 for an unknown id (probed 99999999) - correct, and what the page turns into notFound()",
+        "topLevelKeys": [
+          "articleId",
+          "headline",
+          "subHeadLine",
+          "body",
+          "bodyText",
+          "bodyHtml",
+          "publishDate",
+          "summary",
+          "sourceId",
+          "language",
+          "hasImage",
+          "hasFile",
+          "companies",
+          "images",
+          "sectors",
+          "topicName",
+          "sourceName"
+        ],
+        "sample_106708": {
+          "articleId": 106708,
+          "headline": "隨著歐洲與東南亞吸納越來越多國際護理人員，全球護理人員遷徙模式正發生轉變",
+          "subHeadLine": "《TruMerit 2025年護理人員遷移報告》揭示，各地區之間的人力資源不平等現象正日益加劇。",
+          "body": null,
+          "bodyText": "TruMerit™（前身為 CGFNS International）今日發布《2025年護理人員遷移報告》，揭示全球護理人員遷移模式出現顯著變化，且在醫療保健需求差異極大的各區域間，護理人力分布的不平等現象正日益加劇。<BR /><BR />該報告透過分析世界衛生組織的數據及 TruMerit 專有的 VisaScreen® 申請紀錄，顯示國際護理人員的流動正日益集中於醫療基礎設施較完善的地區，而面臨嚴重護理人力短缺的地區，在僱用國際教育背景護理人員的能力方面則持續處於劣勢。<BR /><BR />歐洲與東南亞地區的國際護理師僱用量呈現急遽增長。根據TruMerit對世衛組織護理人力數據的分析… [truncated, full length 1662]",
+          "bodyHtml": "<p style=\"text-align: justify;\"><strong>賓夕法尼亞州費城, 2026年4月28日 - (亞太商訊) - </strong><a href=\"https://pr.report/l3ld\">TruMerit</a>&trade;（前身為 CGFNS International）今日發布《2025年護理人員遷移報告》，揭示全球護理人員遷移模式出現顯著變化，且在醫療保健需求差異極大的各區域間，護理人力分布的不平等現象正日益加劇。</p>\r\n<p><img style=\"display: block; margin-left: auto; margin-righ… [truncated, full length 2457]",
+          "publishDate": "2026-04-28T22:00:00",
+          "summary": "TruMerit™（前身為 CGFNS International）今日發布《2025年護理人員遷移報告》，揭示全球護理人員遷移模式出現顯著變化，且在醫療保健需求差異極大的各區域間，護理人力分布的不平等現象正日益加劇。",
+          "sourceId": 2,
+          "language": "ZH-TW",
+          "hasImage": false,
+          "hasFile": false,
+          "companies": [
+            {
+              "companyID": 9453,
+              "topLogoFileName": "TruMerit68.jpg",
+              "logoFileName": "TruMerit.jpg",
+              "companyURL": "trumerit.org",
+              "companyName": "TruMerit",
+              "sectorName": null,
+              "companyNameCH": "TruMerit",
+              "companyNameCT": "TruMerit",
+              "companyNameJP": "TruMerit",
+              "companyNameKO": "TruMerit"
+            }
+          ],
+          "images": [],
+          "sectors": [
+            "Healthcare & Pharm"
+          ],
+          "topicName": "Press release summary",
+          "sourceName": "ACN Newswire"
+        },
+        "sample_109894_differencesOnly": {
+          "note": "Second sample, included only for the fields that differ from 106708.",
+          "sectors": [
+            "Enterprise IT",
+            "Aerospace & Defence",
+            "Artificial Intel [AI]",
+            "Automation [IoT]"
+          ],
+          "images": [
+            {
+              "thumbImage": "",
+              "bigImage": "NEC-pic.jpg",
+              "caption": ""
+            }
+          ],
+          "hasImage": false,
+          "language": "EN",
+          "sourceName": "JCN Newswire",
+          "companiesCount": 2,
+          "companyIds": [
+            82,
+            86
+          ]
+        }
+      }
+    },
+    {
+      "id": "PR-LEGACY",
+      "role": "enrichment only - 2s AbortSignal timeout, failure is swallowed",
+      "method": "GET",
+      "url": "https://www.acnnewswire.com/acnnewswireapi/api/v1/News/GetArticleById/{id}",
+      "expected": {
+        "source": "interface LegacyApiArticle - src/services/acn-api.types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "id": "number",
+          "headline": "string",
+          "subHeadline": "string | null",
+          "dateTime": "string  (formatted, not ISO: \"Thursday, 06 August 2026 14:00\")",
+          "bodyText": "string | null",
+          "bodyHtml": "string | null",
+          "language": "string | null",
+          "source": "string | null",
+          "supplier": "string | null",
+          "location": "{ name, sub_Location } | null",
+          "url": "string | null",
+          "photo": "string[] | null",
+          "sector": "string[] | null",
+          "topic": "string | null",
+          "views": "string | null",
+          "companies": "[{ comp_ID, company_Name, companyNameCH/CT/JP/KO, issuer, logofilename, url, facebook, twitter, youtube, linkedin, telegram }] | null",
+          "stock": "unknown"
+        },
+        "suppliesUniquely": [
+          "language",
+          "location",
+          "url",
+          "views",
+          "supplier",
+          "company social links",
+          "full sector list"
+        ]
+      },
+      "actual": {
+        "httpStatus": 503,
+        "body": "Service Unavailable (HTML error page, 1264 bytes - not JSON)",
+        "downSince": "2026-08-27",
+        "daysDown": 14
+      }
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "PR-M1",
+      "severity": "low",
+      "field": "sectors",
+      "expected": "JSON-encoded string - \"[\\\"Energy, Alternatives\\\",\\\"Engineering\\\"]\"",
+      "actual": "Real JSON array - [\"Enterprise IT\",\"Aerospace & Defence\",\"Artificial Intel [AI]\",\"Automation [IoT]\"]",
+      "impact": "None at runtime: parseSectors() accepts both. The TYPE DECLARATION is stale - NewApiPressRelease.sectors should be `string[] | string | null`.",
+      "where": "src/services/acn-api.types.ts (sectors), src/services/acn-adapter.ts:23"
+    },
+    {
+      "id": "PR-M2",
+      "severity": "low",
+      "field": "sectorName (top level)",
+      "expected": "Declared REQUIRED: `sectorName: string | null`",
+      "actual": "Absent from the response entirely on both samples.",
+      "impact": "None - the adapter only reads it as a fallback after `sectors`. But the type lies about the wire format.",
+      "where": "src/services/acn-api.types.ts"
+    },
+    {
+      "id": "PR-M3",
+      "severity": "medium",
+      "field": "language",
+      "expected": "Documented and coded as LEGACY-ONLY. The second (503) HTTP call exists chiefly to obtain it.",
+      "actual": "The NEW API now returns it: \"EN\" on 109894, \"ZH-TW\" on 106708.",
+      "impact": "Positive. Verified both codes resolve through src/lib/languages.ts ALIASES (\"en\", \"zh tw\" -> zh-Hant), so canonicalisation to /article/traditional-chinese/... is correct today WITHOUT the legacy call. This weakens the main justification for keeping PR-LEGACY.",
+      "where": "src/services/acn-adapter.ts:68, src/services/press-release.ts"
+    },
+    {
+      "id": "PR-M4",
+      "severity": "medium",
+      "field": "supplier, location, url, views, company socials",
+      "expected": "Filled from the legacy record.",
+      "actual": "Legacy is 503 and the new API returns none of them -> every article renders supplier \"\", location {name:\"\",sub_Location:\"\"}, url \"\", views \"0\", and no company social icons.",
+      "impact": "Not a crash - these are the permanently-blank fields on every live article page. views showing \"0\" on every release is the visible symptom.",
+      "where": "src/services/acn-adapter.ts:70-79"
+    },
+    {
+      "id": "PR-M5",
+      "severity": "medium",
+      "field": "companies[]",
+      "expected": "Adapter keeps only companies[0] (`rawCompany = raw.companies?.[0]`).",
+      "actual": "The API returns MULTIPLE companies on co-issued releases - 109894 returns 2 (companyID 82 MHI and 86 NEC).",
+      "impact": "Second and later issuers are silently dropped from the article page. A joint announcement credits only the first company.",
+      "where": "src/services/acn-adapter.ts:45"
+    },
+    {
+      "id": "PR-M6",
+      "severity": "low",
+      "field": "hasImage",
+      "expected": "Boolean flag stating whether the article has an image.",
+      "actual": "Unreliable: 109894 returns hasImage=false while images[] contains {\"bigImage\":\"NEC-pic.jpg\"}.",
+      "impact": "None today - the adapter ignores hasImage and reads images[0].bigImage. Any future consumer branching on hasImage will hide a real image.",
+      "where": "src/services/acn-adapter.ts:47"
+    },
+    {
+      "id": "PR-M7",
+      "severity": "low",
+      "field": "body",
+      "expected": "`body` or `bodyHtml`, whichever is present.",
+      "actual": "`body` is null on every article sampled; `bodyHtml` always carries the markup.",
+      "impact": "None - the `raw.bodyHtml ?? raw.body` fallback is never exercised.",
+      "where": "src/services/acn-adapter.ts:64"
+    },
+    {
+      "id": "PR-M8",
+      "severity": "medium",
+      "field": "bodyHtml (security)",
+      "expected": "Sanitised before leaving the service layer, as every neighbouring field is.",
+      "actual": "Returned raw by the adapter. Safe for the rendered page (Body.tsx sanitises twice) but /api/press-release/{id} still serves it unsanitised.",
+      "impact": "Pre-existing known finding, restated because it is visible in this capture. Any consumer not rendering through Body.tsx is unprotected.",
+      "where": "src/services/acn-adapter.ts:64, src/app/api/press-release/[id]/route.ts"
+    }
+  ],
+  "verdict": {
+    "endpointHealth": "HEALTHY - primary returns 200 with a complete payload and 404s correctly on unknown ids.",
+    "pageRenders": true,
+    "blockers": [],
+    "degraded": [
+      "views always \"0\"",
+      "location, url, supplier always blank",
+      "no company social links",
+      "co-issuers beyond the first dropped (PR-M5)"
+    ]
+  }
+}

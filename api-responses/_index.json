@@ -1,0 +1,132 @@
+{
+  "what": "Expected vs actual API responses for the Company, Press Release and Events pages.",
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl against the live hosts - no Next.js fetch cache involved, so these are true upstream responses.",
+  "hosts": {
+    "new_api": "https://development.acnnewswire.com  (primary, hardcoded in src/services/*.ts)",
+    "legacy_api": "https://www.acnnewswire.com/acnnewswireapi  (enrichment only)"
+  },
+  "definitions": {
+    "expected": "The shape the repo codes against - the TypeScript interface in src/services/, plus the documented assumptions in the surrounding comments.",
+    "actual": "A verbatim live capture, with strings over 300 chars truncated and a marker appended. Credentials are redacted."
+  },
+  "files": [
+    {
+      "file": "company.json",
+      "page": "Company",
+      "route": "/company/[id]",
+      "endpoints": 3,
+      "mismatches": 10,
+      "health": "HEALTHY"
+    },
+    {
+      "file": "press-release.json",
+      "page": "Press Release",
+      "route": "/article/<lang>/<id>/<slug>",
+      "endpoints": 2,
+      "mismatches": 8,
+      "health": "HEALTHY (primary); legacy leg 503"
+    },
+    {
+      "file": "events.json",
+      "page": "Events",
+      "route": "/events, /events/[eventId]",
+      "endpoints": 3,
+      "mismatches": 8,
+      "health": "DEGRADED"
+    }
+  ],
+  "topFindings": [
+    {
+      "rank": 1,
+      "id": "E-M1 / E-M2",
+      "page": "Events",
+      "severity": "HIGH",
+      "finding": "The Events list endpoint now returns 7 upcoming events instead of 839 spanning 2007-2026, and compId is null on all of them.",
+      "consequence": "No live event can show its press releases, and every historical event detail page now 404s. Backend-side; raise with the API team.",
+      "actionable": "confirm intent with the API team before changing code"
+    },
+    {
+      "rank": 2,
+      "id": "C-M1",
+      "page": "Company",
+      "severity": "HIGH",
+      "finding": "sectors[] elements are keyed `name`; buildIndustry() reads `sectorName`.",
+      "consequence": "The Industry row is blank on every company page that has no curated entry. The data is present and correct - the read looks at the wrong key.",
+      "actionable": "FIXABLE IN THE FRONTEND TODAY - one line in src/services/company-profile.ts"
+    },
+    {
+      "rank": 3,
+      "id": "C-M7",
+      "page": "Company",
+      "severity": "HIGH (security)",
+      "finding": "GET /api/Companies/{id} returns plaintext `username` and `password` on an unauthenticated endpoint.",
+      "consequence": "Credential disclosure to anyone who can reach the API. Re-confirmed live on 2026-09-10.",
+      "actionable": "backend fix required - strip from the Companies DTO"
+    },
+    {
+      "rank": 4,
+      "id": "PR-M5",
+      "page": "Press Release",
+      "severity": "medium",
+      "finding": "The adapter keeps only companies[0]; co-issued releases return 2+ companies.",
+      "consequence": "Joint announcements credit only the first issuer (e.g. article 109894 drops NEC).",
+      "actionable": "FIXABLE IN THE FRONTEND TODAY - src/services/acn-adapter.ts"
+    },
+    {
+      "rank": 5,
+      "id": "PR-M3",
+      "page": "Press Release",
+      "severity": "medium",
+      "finding": "The new API now returns `language` (\"EN\", \"ZH-TW\"), the field the 503 legacy call exists to supply.",
+      "consequence": "Verified to resolve correctly through src/lib/languages.ts. The legacy enrichment call could likely be dropped.",
+      "actionable": "FIXABLE IN THE FRONTEND - removes one dead HTTP call per article render"
+    },
+    {
+      "rank": 6,
+      "id": "C-M8",
+      "page": "Company",
+      "severity": "medium",
+      "finding": "by-company DOES return `language`, contradicting the code comment saying it does not.",
+      "consequence": "Language tags are suppressed on every company feed row despite the data arriving.",
+      "actionable": "FIXABLE IN THE FRONTEND TODAY - one line in src/services/company-articles.ts"
+    },
+    {
+      "rank": 7,
+      "id": "C-M2",
+      "page": "Company",
+      "severity": "medium",
+      "finding": "/api/Companies/{id} already returns the six social links that /details is fetched for.",
+      "consequence": "One redundant HTTP request per company page render.",
+      "actionable": "FIXABLE IN THE FRONTEND"
+    },
+    {
+      "rank": 8,
+      "id": "E-M4",
+      "page": "Events",
+      "severity": "medium",
+      "finding": "/api/Events/{id} still 500s with the EF Core Companies-column error, unchanged since 2026-09-07.",
+      "consequence": "The list-and-filter workaround in fetchEvent() is still required.",
+      "actionable": "backend fix required"
+    }
+  ],
+  "changesSinceLastCapture": {
+    "lastCapture": "2026-09-08 (PROJECT-CONTEXT.toon api_health)",
+    "confirmedStillTrue": [
+      "press-release/{id} returns a real sectors ARRAY, not a JSON-encoded string",
+      "by-company/{id} works and paginates",
+      "Companies, Companies/{id}, Companies/{id}/details all 200",
+      "Events/{id} still 500s",
+      "Legacy host still 503",
+      "Credentials still exposed on the Companies DTO",
+      "Swagger still publishes 13 paths"
+    ],
+    "nowFalse": [
+      "Events: \"839 events, 2007-11-18 to 2026-12-02\" - now 7 events, all upcoming",
+      "Events: \"the DEFAULT IS ONLY 10, so an unpaged call returns 10 arbitrary rows\" - an unpaged call now returns the full set of 7",
+      "Events: \"~2.65MB because each event repeats its organiser once per release\" - the response is now 1991 bytes and companies[] is empty",
+      "Articles: \"the dev DB is a stale partial snapshot - newest publishDate is 2026-04-28\" - article 109894 is dated 2026-09-08, and event releases run to 2026-09-11"
+    ],
+    "note": "PROJECT-CONTEXT.toon api_health is due for its scheduled refresh on 2026-09-22; the Events rows above should be corrected then, or sooner."
+  }
+}

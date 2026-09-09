@@ -1,0 +1,211 @@
+{
+  "what": "Expected vs actual API responses for THIS app (acn-admin), covering Company, Press Release and Events — the admin-side counterpart to the public-site capture in the parent folder.",
+  "whyThisFolderExists": "The four files one level up (../_index.json, ../company.json, ../press-release.json, ../events.json) were captured against the PUBLIC SITE's Next.js repo. That app has a different service layer (src/services/*), different interfaces and different mapping decisions, so its `expected` column describes code that does not exist here. Both apps talk to the same wire. These files re-run the same comparison against this repo's src/lib/api/*, so the two can be laid side by side and the API call unified.",
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl against the live host — no /wire proxy, no IndexedDB cache, so these are true upstream responses.",
+  "hosts": {
+    "api": "https://development.acnnewswire.com  (the only host this app talks to — see src/lib/api/client.ts UPSTREAM_URL)",
+    "proxy": "/wire — same-origin prefix, vite.config.ts in dev and vercel.json in deployment. Exists because the API's CORS is an allowlist, not a wildcard.",
+    "legacy": "NOT USED by this app. The public site additionally calls https://www.acnnewswire.com/acnnewswireapi for enrichment; that host has been 503 since 2026-08-27. This repo has no dependency on it."
+  },
+  "definitions": {
+    "expected": "The shape this repo codes against — the TypeScript interfaces in src/lib/api/types.ts, the parameter declarations in src/lib/api/endpoints.ts, and the documented assumptions in the surrounding comments.",
+    "actual": "A verbatim live capture, with strings over 300 chars truncated and a marker appended. Credentials are redacted.",
+    "LIVE": "The mismatch affects code that runs today.",
+    "LATENT": "The endpoint is typed, exported and tested, but has no caller outside src/lib/api/map-article.test.ts. The mismatch bites on first use."
+  },
+  "coverage": "All 13 operations in the swagger document were probed. Every one answered.",
+  "files": [
+    { "file": "company.json", "page": "Company", "endpoints": 4, "mismatches": 8, "health": "HEALTHY", "shapeFidelity": "4 / 4 exact" },
+    { "file": "press-release.json", "page": "Press Release", "endpoints": 6, "mismatches": 9, "health": "HEALTHY", "shapeFidelity": "2 exact, 2 close, 2 materially wrong" },
+    { "file": "events.json", "page": "Events", "endpoints": 3, "mismatches": 8, "health": "DEGRADED", "shapeFidelity": "2 / 2 exact — every problem here is data, not shape" }
+  ],
+  "topFindings": [
+    {
+      "rank": 1,
+      "id": "AC-M1",
+      "page": "Company",
+      "severity": "HIGH",
+      "status": "LIVE",
+      "finding": "The API's sector ids are a different numbering from src/lib/sectors.ts. mapSector() resolves by id; only 7 of 22 sampled pairs agree, and 6 resolve to a DIFFERENT, REAL sector name.",
+      "consequence": "Wrong-but-plausible sector names are written into CompanyFull and cached. A blank field is visibly missing; a wrong sector name is not.",
+      "actionable": "FIXABLE HERE TODAY — match on `name` first in src/lib/api/map-company.ts. Name-matching resolves 18 of 22. map-article.ts already matches by name, so the two mappers currently disagree with each other."
+    },
+    {
+      "rank": 2,
+      "id": "AC-M2",
+      "page": "Company",
+      "severity": "HIGH (security)",
+      "status": "LIVE",
+      "finding": "GET /api/Companies and /api/Companies/{id} return plaintext `username` and `password` on unauthenticated endpoints.",
+      "consequence": "Worse here than on the public site: this app syncs ALL 9,606 companies, so a full sync writes 9,606 plaintext credential pairs into the browser's IndexedDB, where they persist across sessions.",
+      "actionable": "Backend must strip them from both DTOs. Until then this repo can stop mapping them, so they are at least never written to disk."
+    },
+    {
+      "rank": 3,
+      "id": "AE-M1 / AE-M2 / AE-M3",
+      "page": "Events",
+      "severity": "HIGH",
+      "status": "LIVE",
+      "finding": "The Events list returns 7 upcoming events instead of 839 spanning 2007-2026, with compId null and companies[] empty on every row.",
+      "consequence": "No event can show its press releases or name its organiser, and only 7 event ids resolve at all. AE-RELEASES is healthy — there is simply no value to pass it.",
+      "actionable": "Backend-side. Confirm intent with the API team before changing code; the current code is correct-but-oversized, which is the safe direction to be wrong in."
+    },
+    {
+      "rank": 4,
+      "id": "AP-M1",
+      "page": "Press Release",
+      "severity": "HIGH",
+      "status": "LATENT",
+      "finding": "GET /api/Articles/search is typed as `ApiArticleListItem[]` but returns a flat 34-key article × company × exchange JOIN row with no `companies[]` and no `images[]` at all.",
+      "consequence": "mapArticleListItem opens with `api.companies.map(...)`, so the first real call throws a TypeError. Nothing calls it today, which is the only reason this has not been seen.",
+      "actionable": "FIXABLE HERE — declare a separate ApiArticleSearchItem before anyone wires up search."
+    },
+    {
+      "rank": 5,
+      "id": "AP-M2",
+      "page": "Press Release",
+      "severity": "HIGH",
+      "status": "LATENT",
+      "finding": "GET /api/Articles/by-company returns the full press-release shape, not ApiArticleFeedItem. `sectorName` is absent entirely; `language`, `sectors`, `bodyHtml` and four more fields are present and undeclared.",
+      "consequence": "mapArticleFeedItem would classify every company-feed release as unclassified while discarding a `language` that is on the wire. Three endpoints share one type but ship two shapes.",
+      "actionable": "FIXABLE HERE — type by-company off the press-release shape; keep ApiArticleFeedItem for homepage and by-industry."
+    },
+    {
+      "rank": 6,
+      "id": "AP-M4",
+      "page": "Press Release",
+      "severity": "medium",
+      "status": "LIVE",
+      "finding": "On GET /api/Articles, `SecId` and `ArtType` are silently IGNORED (byte-identical results to an unfiltered call), and `Cid` is a source id, not a company id — Cid=82/574/9453 return [], Cid=2/3/4/5 each return a distinct set.",
+      "consequence": "Any list filter built on SecId or ArtType returns unfiltered data while appearing to work. Only HasThumbnail actually filters.",
+      "actionable": "Correct the parameter docs and do not expose SecId/ArtType as filters. Raise Cid with the API team — see AE-M4 for the same substitution on a second endpoint."
+    },
+    {
+      "rank": 7,
+      "id": "AP-M3",
+      "page": "Press Release",
+      "severity": "medium",
+      "status": "LIVE",
+      "finding": "The press-release detail endpoint DOES return `language`. The code says it does not and threads the value in from the cached list row instead.",
+      "consequence": "A cold-cache article open — a direct URL, a cleared IndexedDB — loses the language and falls back to English, when the correct value was in the response all along.",
+      "actionable": "FIXABLE HERE TODAY — two lines, and it decouples loadArticleRecord from the list cache."
+    },
+    {
+      "rank": 8,
+      "id": "AP-M5",
+      "page": "Press Release",
+      "severity": "medium",
+      "status": "LATENT",
+      "finding": "by-industry does not match `sector_name`. Of the 75 sector_names in lib/sectors.ts, only 4 return rows. What it matches is the coarse article `sectorName` set — Business, Healthcare, Technology, Industrial, Automotive — three of which are sector_TYPE values in the master list.",
+      "consequence": "An industry filter driven from the app's sector list comes back empty for 71 of 75 options.",
+      "actionable": "This is the third taxonomy in play. Needs one taxonomy agreed with the API team; see AC-M1 for the id half of the same problem."
+    },
+    {
+      "rank": 9,
+      "id": "AP-M6",
+      "page": "Press Release",
+      "severity": "medium",
+      "status": "LIVE",
+      "finding": "`hasImage` was false on 100 / 100 consecutive list rows while 28 of them carried a non-empty images[]. `imageUrl` was null on 100 / 100.",
+      "consequence": "hasImage is not a usable signal. Notably the HasThumbnail QUERY parameter works correctly, so the server knows — it just does not say so in the field.",
+      "actionable": "FIXABLE HERE — branch on images.length, never on hasImage."
+    },
+    {
+      "rank": 10,
+      "id": "AC-M3",
+      "page": "Company",
+      "severity": "medium",
+      "status": "LIVE",
+      "finding": "/api/Companies/{id}/details contributes nothing the main call does not already carry. Across 8 companies it returned only marketId \"1\", the six social links byte-identical to those on /api/Companies/{id}, and pos1Desc/pos2Desc \"CEO\" with no matching name.",
+      "consequence": "One of three requests per company editor load is redundant. The Company details tab and the address block have no data source at all — every address, telephone, email, established, listed and employees field was empty on all 8.",
+      "actionable": "Frontend can drop the call. But ask upstream first — it is the only endpoint that could ever carry an address."
+    }
+  ],
+  "crossCuttingThemes": [
+    {
+      "theme": "Three sector taxonomies, none of which agree",
+      "detail": "(1) src/lib/sectors.ts — 75 sector_names under 9 sector_types, with its own ids. (2) The company endpoint's sectors[] — fine-grained names under a DIFFERENT id numbering (AC-M1). (3) The article endpoints' sectorName — a coarse 5-value set whose members are mostly sector_TYPEs in the master list (AP-M5). Meanwhile the press-release endpoint's sectors[] uses taxonomy (1)'s names correctly. Unifying the API call means picking one of these and stating the mapping to the other two.",
+      "affects": ["AC-M1", "AP-M5", "AP-M2"]
+    },
+    {
+      "theme": "`companyId` sometimes means source id",
+      "detail": "The `Cid` parameter on /api/Articles and the `companyId` field on /api/Events/company/{id}/year/{year} both carry source ids (2 = ACN Newswire, 3 = JCN Newswire) rather than company ids. Two unrelated endpoints making the same substitution reads as a backend-wide naming problem, not two typos.",
+      "affects": ["AP-M4", "AE-M4"]
+    },
+    {
+      "theme": "Casing and end-of-list are per-endpoint, not per-API",
+      "detail": "companyId vs companyID, logoFilename vs logoFileName, Page/Size vs pageNumber/pageSize — all already absorbed by this repo's types and mappers. Less well handled: end-of-list is [] on /api/Articles, 404 on /api/Articles/by-company, and Page is ignored entirely on /api/Articles/search. Error bodies come in three shapes (RFC9110 problem+json, {message}, {message, detail}).",
+      "affects": ["AP-M7", "AC-M7"]
+    },
+    {
+      "theme": "Shape fidelity is inverted between pages",
+      "detail": "Company and Events declare their shapes exactly right and fail on DATA (empty details, null compId). Press Release declares two shapes materially wrong but the data is complete and healthy. The two pages need opposite kinds of work: Events needs the API team, Press Release needs a type pass in this repo.",
+      "affects": ["all"]
+    }
+  ],
+  "versusPublicSite": {
+    "purpose": "What the parent-folder capture says, mapped onto this repo — so a finding is not fixed twice or attributed to the wrong codebase.",
+    "sameWireFactSharedFinding": [
+      { "wireFact": "Credentials in plaintext on the Companies DTO", "site": "C-M7", "admin": "AC-M2", "note": "Same backend bug. Materially worse here because this app syncs all 9,606 companies to IndexedDB." },
+      { "wireFact": "press-release/{id} returns `language`", "site": "PR-M3", "admin": "AP-M3", "note": "Same field. The site can drop a 503 legacy call over it; this repo can drop a cache dependency." },
+      { "wireFact": "Events: 7 rows, compId null, companies[] empty", "site": "E-M1 / E-M2 / E-M3", "admin": "AE-M1 / AE-M2 / AE-M3", "note": "Identical. One question to the API team answers it for both apps." },
+      { "wireFact": "/api/Events/{id} 500s (EF Core Companies column)", "site": "E-M4", "admin": "AE-M5", "note": "Both repos already work around it by filtering the list." },
+      { "wireFact": "Event dates are offsetless date-only midnights", "site": "E-M5", "admin": "AE-M6", "note": "Both stamp +08:00. Independently arrived at, same conclusion." },
+      { "wireFact": "hasImage is false on articles that have images", "site": "PR-M6", "admin": "AP-M6", "note": "Same. Neither repo should branch on it." },
+      { "wireFact": "/details is redundant for socials", "site": "C-M2", "admin": "AC-M3", "note": "This capture adds that it is redundant for everything else too — all 8 companies sampled had empty address/profile fields." },
+      { "wireFact": "by-company returns the full article, not a trimmed row", "site": "C-M9", "admin": "AP-M2", "note": "The site logs it as a bandwidth issue. Here it is a correctness issue, because the missing `sectorName` is the feed mapper's only classification source." }
+    ],
+    "whereThisRepoIsAlreadyRight": [
+      { "finding": "sectors[] type", "site": "PR-M1 — the site declares it as a JSON-ENCODED STRING and parses defensively", "admin": "src/lib/api/types.ts declares `sectors: string[]`, which is what the wire sends. No fix needed here." },
+      { "finding": "sectorName on the press-release detail", "site": "PR-M2 — declared REQUIRED, never returned", "admin": "Not declared on ApiPressRelease at all. Correct." },
+      { "finding": "Co-issued releases", "site": "PR-M5 — the site's adapter keeps only companies[0], dropping NEC from article 109894", "admin": "mapPressRelease maps every companyID into company_ids and sets the first as primary. Correct." },
+      { "finding": "bloomberg[] shape", "site": "C-M4 — declared as \"shape unverified\", and `name` is discarded so seven codes render as seven rows labelled \"Bloomberg\"", "admin": "ApiBloombergCode is fully typed and mapBloombergCode uses `name` as the label fallback. Correct." },
+      { "finding": "companyNameEN", "site": "C-M3 — declared on the DETAIL endpoint, never returned there", "admin": "Declared on the LIST item, where it genuinely is returned, and the detail type uses companyName. Correct — see AC-M4." },
+      { "finding": "Contact paging", "site": "not covered", "admin": "The embedded contacts list defaults to Size=20; repository.ts already passes Size=100, so companies with more than 20 contacts are not truncated." }
+    ],
+    "whereThisRepoIsWorse": [
+      { "finding": "Sector resolution", "site": "C-M1 — buildIndustry() reads the wrong KEY (`sectorName` where the wire sends `name`), so the Industry row renders blank", "admin": "AC-M1 — mapSector() reads the right key but resolves the wrong TAXONOMY, so ~27% of sector rows get a wrong-but-real name. A blank field is visibly missing; a wrong one is not. Worse failure mode, same root cause: nobody has agreed which sector list is authoritative." },
+      { "finding": "Credential persistence", "site": "receives them and discards them", "admin": "AC-M2 — writes 9,606 pairs to IndexedDB on a full sync." }
+    ],
+    "onlyInThisRepo": [
+      "AP-M1 — the public site never calls /api/Articles/search, so its 34-key JOIN shape is undocumented there.",
+      "AP-M4 — SecId and ArtType silently ignored; the site does not use /api/Articles with filters.",
+      "AP-M5 — the by-industry taxonomy probe (all 75 master sector_names tried, 4 hits).",
+      "AC-M7 / AP-M7 — three error-body shapes and three different end-of-list signals.",
+      "Measured volumes: 9,606 companies (97 pages) and 80,602 articles (807 pages), against the 9,439 / 78,874 recorded in repository.ts."
+    ],
+    "onlyInTheSiteCapture": [
+      "PR-LEGACY — the 503 legacy enrichment host. This app has no dependency on it, so `views`, `location`, `supplier` and company social links are not a concern here.",
+      "Next.js fetch-cache and unstable_cache sizing questions — this app caches in IndexedDB instead."
+    ]
+  },
+  "unificationChecklist": {
+    "purpose": "What has to be agreed before one API client can serve both apps. Ordered by what blocks what.",
+    "askTheApiTeam": [
+      "Is the Events 839 → 7 collapse intentional, and will compId / companies[] be repopulated? (AE-M1/M2/M3 — blocks every event feature in both apps.)",
+      "Strip username/password from the Companies DTO. (AC-M2 / C-M7 — security, both apps.)",
+      "Which sector taxonomy is authoritative, and what are the id mappings between the company sectors[] ids and the article sectorName set? (AC-M1 / AP-M5 — blocks any shared classification code.)",
+      "Is `Cid` on /api/Articles, and `companyId` on the event-releases feed, meant to be a source id? (AP-M4 / AE-M4.)",
+      "Are SecId and ArtType meant to filter? They are currently accepted and ignored. (AP-M4.)",
+      "Is /api/Companies/{id}/details empty because the dev DB is sparse, or because the DTO drops the fields? (AC-M3 — decides whether the call can be deleted.)",
+      "Is /api/Events/{id} on the fix list? (AE-M5 — unchanged for days.)",
+      "Is /api/Articles/search's ignored `Page` intentional? It returns a fixed 10-row window. (AP-M1.)"
+    ],
+    "fixableInThisRepoNow": [
+      "AC-M1 — resolve sectors by name in map-company.ts (one expression; align it with map-article.ts, which already does).",
+      "AP-M3 — add `language` to ApiPressRelease and read it in mapPressRelease (two lines).",
+      "AP-M1 — declare ApiArticleSearchItem before search gets a caller.",
+      "AP-M2 — split ApiArticleFeedItem so by-company is typed off the press-release shape.",
+      "AP-M6 — branch on images.length, not hasImage.",
+      "AC-M2 (partial) — stop mapping portal_username/portal_password so they never reach IndexedDB.",
+      "Comment corrections: AP-M8 (homepage is not empty), AE-M7 (the eventImage path is known), AC-M5 and AP-M-volume (record counts)."
+    ],
+    "sharedShapesWorthExtracting": [
+      "ApiArticleCompany — identical on press-release, by-company, homepage and events. One definition would serve both repos.",
+      "ApiArticleImage — identical everywhere.",
+      "The language tag map (EN / JA / ZH-CN / ZH-TW / KO). This repo's LANGUAGE_BY_API_TAG covers every value observed across 113 sampled articles; the site has its own in src/lib/languages.ts.",
+      "sourceId → sourceName (2 = ACN Newswire, 3 = JCN Newswire). Only these two were observed on the press-release endpoint across 13 samples."
+    ]
+  }
+}

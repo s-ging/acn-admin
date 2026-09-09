@@ -1,0 +1,411 @@
+{
+  "app": "acn-admin (this repo)",
+  "page": "Companies list + Company editor",
+  "routes": [
+    "/companies (list, sheet view)",
+    "/companies/:id (editor)"
+  ],
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl against development.acnnewswire.com — no proxy, no IndexedDB cache, so these are true upstream responses.",
+  "consumedBy": [
+    "src/lib/api/endpoints.ts — fetchCompanies, fetchCompany, fetchCompanyDetails, fetchCompanyContacts",
+    "src/lib/api/types.ts — ApiCompanyListItem, ApiCompanyDetail, ApiCompanyExtraDetails, ApiCompanyContact, ApiCompanySector, ApiBloombergCode, ApiTicker",
+    "src/lib/api/map-company.ts — mapCompanyListItem, mapCompanyDetail, mergeCompanyDetail, mapSector, mapTicker, mapBloombergCode, mapContact",
+    "src/lib/api/repository.ts — loadCompanyRecord, loadCompanyList"
+  ],
+  "note": "Long strings in every `actual` sample are truncated at 300 chars with a marker. Credentials the API returns publicly are redacted here — see AC-M2.",
+  "endpoints": [
+    {
+      "id": "AC-LIST",
+      "role": "the Companies list and the full sync — 97 pages of 100, cached in IndexedDB",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Companies?Page=N&Size=N",
+      "expected": {
+        "source": "interface ApiCompanyListItem — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "companyId": "number",
+          "companyNameEN": "string | null",
+          "companyNameCH": "string | null",
+          "companyNameCT": "string | null",
+          "companyNameJP": "string | null",
+          "companyNameKO": "string | null",
+          "logoFilename": "string | null",
+          "topLogoFilename": "string | null",
+          "boilerPlate": "string | null",
+          "extBoilerPlate": "string | null",
+          "reportFilename": "string | null",
+          "reportFileDate": "string | null",
+          "reportFileSize": "string | null",
+          "username": "string | null",
+          "password": "string | null",
+          "url": "string | null"
+        },
+        "volume": "9,439 companies, 4.3 MB on the wire, ~95 pages at Size=100 (src/lib/api/repository.ts header)",
+        "paging": "`Size` capped at 100; page past the end returns a short page"
+      },
+      "actual": {
+        "httpStatus": 200,
+        "topLevelKeys": [
+          "companyId",
+          "companyNameEN",
+          "companyNameCH",
+          "companyNameCT",
+          "companyNameJP",
+          "companyNameKO",
+          "logoFilename",
+          "topLogoFilename",
+          "boilerPlate",
+          "extBoilerPlate",
+          "reportFilename",
+          "reportFileDate",
+          "reportFileSize",
+          "username",
+          "password",
+          "url"
+        ],
+        "undeclaredKeys": [],
+        "declaredButNeverReturned": [],
+        "shapeVerdict": "EXACT MATCH — the only endpoint in the whole API whose declared shape is byte-for-byte what arrives.",
+        "sample_firstRow": {
+          "companyId": 14,
+          "companyNameEN": "Umetal",
+          "companyNameCH": "Umetal",
+          "companyNameCT": "JCN Traditional Chinese",
+          "companyNameJP": "Umetal",
+          "companyNameKO": "JCN Korean1",
+          "logoFilename": null,
+          "topLogoFilename": null,
+          "boilerPlate": "Umetal.net, invested by Ruiganglian Co., Ltd, is the leading information website for steels and raw materials in China. Based on an experienced and professional… [truncated, full length 748]",
+          "extBoilerPlate": "Umetal.net, invested by Ruiganglian Co., Ltd, is the leading information website for steels and raw materials in China. Based on an experienced and professional… [truncated, full length 688]",
+          "reportFilename": null,
+          "reportFileDate": null,
+          "reportFileSize": null,
+          "username": "<REDACTED — see AC-M2>",
+          "password": "<REDACTED — see AC-M2>",
+          "url": "www.umetal.net"
+        },
+        "measuredVolume": {
+          "totalCompanies": 9606,
+          "pagesAtSize100": 97,
+          "lastPageRows": 6,
+          "probe": "Page=96 → 100 rows, Page=97 → 6 rows, Page=98 → []"
+        },
+        "pagingBehaviour": {
+          "Size=100": "200, 100 rows",
+          "Size=101": "400 — {\"errors\":{\"Size\":[\"Size must be between 1 and 100.\"]}} (RFC9110 problem+json)",
+          "Page=9999": "200 with [] — an empty array, NOT a 404"
+        }
+      }
+    },
+    {
+      "id": "AC-PROFILE",
+      "role": "primary editor load — names, logos, boilerplate, sectors, tickers, Bloomberg codes, contacts",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Companies/{id}?Page=&Size=&Sort1=&Ord1=",
+      "probedWith": ["82 (MHI — rich)", "574 (HKTDC — 20 contacts)", "14 (Umetal — sparse)", "9453 (TruMerit)", "86 (NEC)", "525 (Luk Fook)"],
+      "expected": {
+        "source": "interface ApiCompanyDetail — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "companyId": "number",
+          "companyName": "string | null",
+          "companyName2": "string | null",
+          "companyNameJP/CH/CT/KO": "string | null",
+          "ticker": "string | null",
+          "url": "string | null",
+          "boilerPlate": "string | null",
+          "sectorId": "number | null",
+          "topLogoFilename": "string | null",
+          "logoFilename": "string | null",
+          "username": "string | null",
+          "password": "string | null",
+          "allowAccess": "boolean",
+          "blog / facebook / twitter / youTube / linkedIn / telegram": "string | null",
+          "rss": "ApiRssFeed[]  — open record, shape unknown",
+          "bloomberg": "ApiBloombergCode[]  — { compId, id, bloombergCode, name }",
+          "sectors": "ApiCompanySector[]  — { compId, id, name, description }",
+          "tickers": "ApiTicker[]  — { id, compId, exchangeId, exchangeName, tickerId, isin }",
+          "contacts": "ApiCompanyContact[]  — name/phone/email only on this endpoint",
+          "page / size / sort1 / ord1": "echoed paging state for the embedded `contacts` list"
+        },
+        "sectorAssumption": "map-company.ts mapSector(): `SECTORS.find(s => s.id === api.id)` — the API's sector `id` indexes the SAME taxonomy as src/lib/sectors.ts. See AC-M1.",
+        "callerParams": "repository.ts calls fetchCompany(id, { size: MAX_PAGE_SIZE }) — Size=100, so the embedded contacts list is not truncated at its default of 20."
+      },
+      "actual": {
+        "httpStatus": 200,
+        "notFoundStatus": "404 for an unknown id (probed 99999999), RFC9110 problem+json body — correct",
+        "topLevelKeys": [
+          "companyId", "companyName", "companyName2", "companyNameJP", "companyNameCH",
+          "companyNameCT", "companyNameKO", "ticker", "url", "boilerPlate", "sectorId",
+          "topLogoFilename", "logoFilename", "username", "password", "allowAccess",
+          "blog", "facebook", "twitter", "youTube", "linkedIn", "telegram", "rss",
+          "bloomberg", "sectors", "tickers", "contacts", "page", "size", "sort1", "ord1"
+        ],
+        "undeclaredKeys": [],
+        "declaredButNeverReturned": [],
+        "shapeVerdict": "EXACT MATCH on the key set. The mismatch is in the VALUES — see AC-M1.",
+        "sample_82": {
+          "companyId": 82,
+          "companyName": "Mitsubishi Heavy Industries (MHI)",
+          "companyName2": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameJP": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameCH": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameCT": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameKO": "Mitsubishi Heavy Industries (MHI)",
+          "ticker": "",
+          "url": "www.mhi.com ",
+          "boilerPlate": "Mitsubishi Heavy Industries (MHI) Group (TSE: 7011; US: MHVYF) is one of the world&apos;s leading industrial firms… [truncated, full length 1080]",
+          "sectorId": 186,
+          "topLogoFilename": "MHI_newT.jpg",
+          "logoFilename": "MHI_new.jpg",
+          "username": "<REDACTED — real value returned, see AC-M2>",
+          "password": "<REDACTED — real value returned, see AC-M2>",
+          "allowAccess": true,
+          "blog": "https://www.mhi.com/rss/",
+          "facebook": "https://www.facebook.com/mhi.ltd/",
+          "twitter": "https://twitter.com/MHI_Group",
+          "youTube": "https://www.youtube.com/user/DiscoverMHI",
+          "linkedIn": "https://www.linkedin.com/company/mitsubishi-heavy-industries/",
+          "telegram": "",
+          "rss": [],
+          "bloomberg": [
+            { "compId": 82, "id": 73, "bloombergCode": "ASIA", "name": "Asia, Pacific Rim" },
+            { "compId": 82, "id": 354, "bloombergCode": "COS", "name": "Companies" },
+            { "compId": 82, "id": 367, "bloombergCode": "CST", "name": "Construction & Engineering" },
+            { "compId": 82, "id": 506, "bloombergCode": "NRG", "name": "Energy" },
+            { "compId": 82, "id": 801, "bloombergCode": "JAPAN", "name": "Japan" },
+            { "compId": 82, "id": 819, "bloombergCode": "JPS", "name": "Japanese Stock Market" },
+            { "compId": 82, "id": 899, "bloombergCode": "MAC", "name": "Machinery, Manufacturing " }
+          ],
+          "sectors": [
+            { "compId": 82, "id": 211, "name": "Aerospace & Defence", "description": "Aerospace & Defence" },
+            { "compId": 82, "id": 190, "name": "Alternative Energy", "description": "Alt. Energy" },
+            { "compId": 82, "id": 217, "name": "Construct, Engineering", "description": "Construction" },
+            { "compId": 82, "id": 172, "name": "Energy, Alternatives", "description": "Energy (Oil/Gas)" },
+            { "compId": 82, "id": 208, "name": "Engineering", "description": "Engineering" },
+            { "compId": 82, "id": 252, "name": "EVs, Transportation", "description": null },
+            { "compId": 82, "id": 253, "name": "Smart Cities", "description": null }
+          ],
+          "tickers": [
+            { "id": 9917, "compId": 82, "exchangeId": "OOTC", "exchangeName": "OTC US", "tickerId": "MHVIY", "isin": "" },
+            { "id": 456, "compId": 82, "exchangeId": "XTKS", "exchangeName": "Tokyo Stock Exchange", "tickerId": "7011", "isin": "JP3900000005" },
+            { "id": 457, "compId": 82, "exchangeId": "OOTC", "exchangeName": "OTC US", "tickerId": "MHVYF", "isin": "" },
+            { "id": 8479, "compId": 82, "exchangeId": "XFRA", "exchangeName": "Frankfurt Stock exchange", "tickerId": "MIH", "isin": "" }
+          ],
+          "contacts": [
+            { "contId": 2329, "contactName": "kazuyo.takeda@jcnnewswire.com", "contactPhone": " ", "contactEmail": "kazuyo.takeda@jcnnewswire.com" },
+            { "contId": 774, "contactName": "Kengo Tatsukawa", "contactPhone": "81-3-6716-2168", "contactEmail": "kengo_tatsukawa@mhi.co.jp" },
+            { "contId": 775, "contactName": "Kenichi Nakamura", "contactPhone": "81-3-6716-2168", "contactEmail": "kenichi_nakamura@mhi.co.jp" }
+          ],
+          "page": 1,
+          "size": 20,
+          "sort1": "",
+          "ord1": "ASC"
+        },
+        "shapeConsistency": "Identical key set on all 6 companies probed.",
+        "paramBehaviour": {
+          "Sort1=Cont_Name&Ord1=DESC": "200 — honoured",
+          "Ord1=BOGUS": "400, problem+json — the regex guard documented in endpoints.ts is real",
+          "Size default": "20 when omitted (574 returned exactly 20 contacts); repository.ts passes Size=100, so this is already handled"
+        }
+      }
+    },
+    {
+      "id": "AC-DETAILS",
+      "role": "the Company details tab — address, established/listed/employees, key people, socials",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Companies/{id}/details",
+      "expected": {
+        "source": "interface ApiCompanyExtraDetails — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "established / listed / employees / dunsNumber / otc / marketId / urlJa": "string | null",
+          "blog / facebook / twitter / linkedIn / youTube / telegram": "string | null",
+          "addr1 / addr2 / addr3 / addr4": "string | null — street, district, city, country in that order",
+          "telephone / facsimile / email": "string | null",
+          "pos1Name / pos1Desc / pos2Name / pos2Desc": "string | null"
+        },
+        "codeComment": "\"Every field here comes back as \"\" rather than null when unset.\""
+      },
+      "actual": {
+        "httpStatus": 200,
+        "notFoundStatus": "404 for an unknown id — and also 404 for company 2, which exists as a source id but not as a company",
+        "topLevelKeys": [
+          "established", "listed", "employees", "dunsNumber", "otc", "marketId", "urlJa",
+          "blog", "facebook", "twitter", "linkedIn", "youTube", "telegram",
+          "addr1", "addr2", "addr3", "addr4", "telephone", "facsimile", "email",
+          "pos1Name", "pos1Desc", "pos2Name", "pos2Desc"
+        ],
+        "undeclaredKeys": [],
+        "declaredButNeverReturned": [],
+        "shapeVerdict": "EXACT MATCH. The problem is that almost every field is empty — see AC-M3.",
+        "sample_82": {
+          "established": "", "listed": "", "employees": "", "dunsNumber": "", "otc": "",
+          "marketId": "1", "urlJa": "",
+          "blog": "https://www.mhi.com/rss/",
+          "facebook": "https://www.facebook.com/mhi.ltd/",
+          "twitter": "https://twitter.com/MHI_Group",
+          "linkedIn": "https://www.linkedin.com/company/mitsubishi-heavy-industries/",
+          "youTube": "https://www.youtube.com/user/DiscoverMHI",
+          "telegram": "",
+          "addr1": "", "addr2": "", "addr3": "", "addr4": "",
+          "telephone": "", "facsimile": "", "email": "",
+          "pos1Name": "", "pos1Desc": "CEO", "pos2Name": "", "pos2Desc": "CEO"
+        },
+        "nonEmptyFieldsAcross8CompaniesSampled": {
+          "marketId": "\"1\" on every company — a constant, no information",
+          "facebook / twitter / linkedIn / youTube / blog": "populated on 82, 574, 86 — and identical to the same fields on AC-PROFILE",
+          "pos1Desc / pos2Desc": "\"CEO\" on 14, 100, 525, 82, 86 — a default, and pos1Name/pos2Name are empty so there is no person to attach it to",
+          "everythingElse": "empty string on all 8"
+        },
+        "emptyOnEveryCompanySampled": [
+          "established", "listed", "employees", "dunsNumber", "otc", "urlJa", "telegram",
+          "addr1", "addr2", "addr3", "addr4", "telephone", "facsimile", "email",
+          "pos1Name", "pos2Name"
+        ]
+      }
+    },
+    {
+      "id": "AC-CONTACTS",
+      "role": "the Contacts tab — the only source for position, fax, description and email format",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/CompContacts?companyId={id}",
+      "expected": {
+        "source": "interface ApiCompanyContact — src/lib/api/types.ts, mapped by mapContact()",
+        "httpStatus": 200,
+        "shape": {
+          "contId": "number",
+          "compId": "number (optional)",
+          "contactName / contactPhone / contactEmail": "string | null",
+          "contactPosition / contactFax / contactDesc": "string | null (optional)",
+          "format": "string | null (optional) — seen as \"HTML\", mapped to email_format"
+        }
+      },
+      "actual": {
+        "httpStatus": 200,
+        "topLevelKeysPerRow": [
+          "contId", "contactName", "contactPhone", "contactPosition",
+          "contactEmail", "contactFax", "contactDesc", "compId", "format"
+        ],
+        "undeclaredKeys": [],
+        "shapeVerdict": "EXACT MATCH — and every optional field is in fact always present on this endpoint.",
+        "rowsReturned_82": 3,
+        "allRows_82": [
+          { "contId": 774, "contactName": "Kengo Tatsukawa", "contactPhone": "81-3-6716-2168", "contactPosition": "PR", "contactEmail": "kengo_tatsukawa@mhi.co.jp", "contactFax": "", "contactDesc": "", "compId": 82, "format": "HTML" },
+          { "contId": 775, "contactName": "Kenichi Nakamura", "contactPhone": "81-3-6716-2168", "contactPosition": "IR", "contactEmail": "kenichi_nakamura@mhi.co.jp", "contactFax": "", "contactDesc": "", "compId": 82, "format": "HTML" },
+          { "contId": 2329, "contactName": "kazuyo.takeda@jcnnewswire.com", "contactPhone": " ", "contactPosition": " ", "contactEmail": "kazuyo.takeda@jcnnewswire.com", "contactFax": "", "contactDesc": "", "compId": 82, "format": "HTML" }
+        ],
+        "paramBehaviour": {
+          "no params": "400 — {\"message\":\"Either companyId or contactId is required.\"}  — NOTE: a bare {message} body, NOT the RFC9110 problem+json every other endpoint uses. See AC-M7.",
+          "contactId=774": "200, 1 row"
+        }
+      }
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "AC-M1",
+      "severity": "HIGH",
+      "status": "LIVE — this runs on every company the editor opens",
+      "field": "sectors[].id vs src/lib/sectors.ts",
+      "expected": "map-company.ts mapSector(): `const master = SECTORS.find(s => s.id === api.id)` — the API's sector `id` indexes the same taxonomy as the app's master list, so `sector_type` and `sector_name` can be resolved from it.",
+      "actual": "The API's sector ids are a DIFFERENT numbering. Of 22 distinct (id, name) pairs collected across 6 companies, only 7 agree with the master list. Six resolve to a DIFFERENT, REAL sector — the name is silently replaced with the wrong one.",
+      "evidence": [
+        "id 174 — API \"Travel & Tourism\"      → master says \"Hospitality\"     (master id for Travel & Tourism is 155)",
+        "id 190 — API \"Alternative Energy\"    → master says \"Enterprise IT\"   (master id for Alternative Energy is 232)",
+        "id 208 — API \"Engineering\"           → master says \"Fashion & Apparel\" (master id for Engineering is 30)",
+        "id 226 — API \"Hospitality\"           → master has no id 226",
+        "id 247 — API \"Clinical Trials\"       → master says \"Smart Cities\"    (master id for Clinical Trials is 249)",
+        "id 253 — API \"Smart Cities\"          → master says \"Regional\"        (master id for Smart Cities is 247)"
+      ],
+      "impact": "Wrong-but-plausible sector data written into CompanyFull.sectors, then cached in IndexedDB and shown in the editor as if it were the wire's own value. This is worse than a blank field: a blank is visibly missing, a wrong sector name is not. 6 of 22 corrupt, 9 fall through to the API's own `name` (correct), 7 happen to agree.",
+      "fix": "Resolve by NAME, not id: `SECTORS.find(s => s.sector_name === api.name) ?? SECTORS.find(s => s.id === api.id)`. Name-matching resolves 18 of the 22 against the master list versus 7 by id. src/lib/api/map-article.ts mapClassification() ALREADY matches by name — the two mappers disagree with each other.",
+      "where": "src/lib/api/map-company.ts — mapSector()"
+    },
+    {
+      "id": "AC-M2",
+      "severity": "HIGH (security)",
+      "status": "LIVE — and this app makes it worse than the public site does",
+      "field": "username / password",
+      "expected": "Declared on both ApiCompanyListItem and ApiCompanyDetail, and mapped to CompanyFull.portal_username / portal_password.",
+      "actual": "Returned in plaintext on BOTH unauthenticated endpoints. Company 82 returns a real username/password pair; so does every row of /api/Companies.",
+      "impact": "The public site merely receives these. This app SYNCS ALL 9,606 COMPANIES and caches the mapped records — so a full sync writes 9,606 plaintext credential pairs into the browser's IndexedDB, where they persist across sessions and survive a page reload. Anything with access to the profile directory can read them. That is a materially larger exposure than the site's.",
+      "fix": "Backend must strip these from both DTOs. Until then this repo can drop them at the mapper (stop populating portal_username/portal_password from the wire) so they are at least never written to disk.",
+      "where": "backend — acnnewswire-api Companies DTO; locally src/lib/api/map-company.ts and src/lib/api/cache.ts"
+    },
+    {
+      "id": "AC-M3",
+      "severity": "medium",
+      "status": "LIVE",
+      "field": "/details — redundant call, empty payload",
+      "expected": "A second request per company editor load, for address, established/listed/employees, key people and socials. repository.ts issues fetchCompany + fetchCompanyDetails + fetchCompanyContacts in parallel.",
+      "actual": "Across 8 companies sampled, /details contributed exactly three things: `marketId: \"1\"` (a constant), the six social links (BYTE-IDENTICAL to the ones already on /api/Companies/{id}), and `pos1Desc/pos2Desc: \"CEO\"` with no matching name. Every address, telephone, facsimile, email, established, listed, employees, dunsNumber, otc and urlJa field was empty on all 8.",
+      "impact": "One of three HTTP requests per company load returns no information the first request did not already carry. The Company details tab and the address block have no data source at all — they are not broken, they are empty because the wire is empty.",
+      "fix": "Frontend can drop the call today and read socials off AC-PROFILE. But the real question is upstream: is the address/profile data absent from the dev database, or absent from this DTO? Worth asking the API team before deleting the call — it is the only endpoint that could ever carry an address.",
+      "where": "src/lib/api/repository.ts:311, src/lib/api/map-company.ts — mergeCompanyDetail()"
+    },
+    {
+      "id": "AC-M4",
+      "severity": "medium",
+      "status": "LIVE",
+      "field": "companyNameEN vs companyName — list and detail disagree",
+      "expected": "Modelled correctly: ApiCompanyListItem declares `companyNameEN`, ApiCompanyDetail declares `companyName` + `companyName2` and no `companyNameEN`.",
+      "actual": "CONFIRMED — the two projections really do use different key names for the same value, and neither carries the other's. The list has no `companyName`; the detail has no `companyNameEN`.",
+      "impact": "Not a bug here (the types already model it), but it is a landmine for anyone unifying the two shapes into one `Company` type: a naive merge of detail over list blanks `name_en`. Note also `companyName2` is an exact duplicate of `companyName` on every company sampled — it carries no second name.",
+      "where": "src/lib/api/types.ts, src/lib/api/map-company.ts — mergeCompanyDetail()"
+    },
+    {
+      "id": "AC-M5",
+      "severity": "low",
+      "status": "LIVE",
+      "field": "record count drift",
+      "expected": "repository.ts header: \"companies 9,439 — 4.3 MB on the wire — ~2s at PAGE_CONCURRENCY\", and a full sync of ~95 requests.",
+      "actual": "9,606 companies — 97 pages at Size=100 (Page=96 → 100 rows, Page=97 → 6, Page=98 → []).",
+      "impact": "None. MAX_PAGES=400 has ample headroom and the sweep stops on a short page. Recorded so the header comment can be corrected.",
+      "where": "src/lib/api/repository.ts — header comment"
+    },
+    {
+      "id": "AC-M6",
+      "severity": "low",
+      "status": "LIVE",
+      "field": "rss",
+      "expected": "`ApiRssFeed = Record<string, unknown>` — \"Never observed populated… the real field names are unknown.\"",
+      "actual": "CONFIRMED still `[]` on every company sampled (82, 574, 14, 9453, 86, 525).",
+      "impact": "None. The open-record type remains the right call; rss_feeds stays unmappable.",
+      "where": "src/lib/api/types.ts — ApiRssFeed"
+    },
+    {
+      "id": "AC-M7",
+      "severity": "low",
+      "status": "LIVE",
+      "field": "error body shape is not uniform",
+      "expected": "One error contract across the API.",
+      "actual": "Two. Validation and 404 on /api/Articles, /api/Companies and /api/Articles/by-industry return RFC9110 problem+json ({type, title, status, errors, traceId}). /api/CompContacts with no params returns {\"message\":\"Either companyId or contactId is required.\"}, and /api/Events/{id} returns {message, detail}.",
+      "impact": "ApiError only keeps the status, so nothing breaks today. But any future \"show the server's reason\" needs to handle both shapes.",
+      "where": "src/lib/api/client.ts — ApiError"
+    },
+    {
+      "id": "AC-M8",
+      "severity": "low",
+      "status": "CONFIRMED CORRECT",
+      "field": "Size cap, Ord1 regex, 404 on unknown id, contacts paging",
+      "expected": "MAX_PAGE_SIZE = 100; Ord1 validated against a regex; Page/Size/Sort1/Ord1 page the embedded contacts list.",
+      "actual": "All four verified. Size=101 → 400 with \"Size must be between 1 and 100.\"; Ord1=BOGUS → 400; Sort1=Cont_Name&Ord1=DESC → 200; /api/Companies/99999999 → 404. The contacts default of Size=20 is real, and repository.ts already passes Size=100.",
+      "impact": "No action. Recorded because these are the assumptions most likely to be doubted during unification.",
+      "where": "src/lib/api/endpoints.ts"
+    }
+  ],
+  "verdict": {
+    "endpointHealth": "HEALTHY — all four endpoints return 200 with complete payloads and 404 correctly on unknown ids.",
+    "shapeFidelity": "The best in the API. All four declared shapes match the wire exactly — no undeclared keys, no declared-but-missing keys.",
+    "blockers": [],
+    "degraded": [
+      "Company sector names silently corrupted for ~27% of sector rows (AC-M1) — fixable in this repo today",
+      "Company details tab has no data: every address and profile field is empty upstream (AC-M3)"
+    ],
+    "security": [
+      "AC-M2 — a full sync writes 9,606 plaintext credential pairs into IndexedDB. Backend fix required; frontend can stop persisting them today."
+    ]
+  }
+}

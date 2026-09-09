@@ -1,0 +1,477 @@
+{
+  "app": "acn-admin (this repo)",
+  "page": "Press releases list + Article editor",
+  "routes": [
+    "/articles (list)",
+    "/articles/:id (editor)"
+  ],
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl against development.acnnewswire.com — no proxy, no IndexedDB cache.",
+  "consumedBy": [
+    "src/lib/api/endpoints.ts — fetchArticles, fetchPressRelease, searchArticles, fetchArticlesByCompany, fetchArticlesByIndustry, fetchHomepageArticles",
+    "src/lib/api/types.ts — ApiArticleListItem, ApiArticleFeedItem, ApiPressRelease, ApiArticleCompany, ApiArticleImage",
+    "src/lib/api/map-article.ts — mapArticleListItem, mapArticleFeedItem, mapPressRelease, mapClassification, mapLanguage, mapStatus, sourceNameFromId",
+    "src/lib/api/repository.ts — loadArticleList (line 538), loadArticleRecord (line 578)"
+  ],
+  "liveVsLatent": "IMPORTANT for reading the mismatches below. Only TWO of the six article endpoints have a caller in app code: fetchArticles (→ mapArticleListItem, repository.ts:538) and fetchPressRelease (→ mapPressRelease, repository.ts:578). searchArticles, fetchArticlesByCompany, fetchArticlesByIndustry and fetchHomepageArticles are written, typed and tested but called by nothing outside src/lib/api/map-article.test.ts. Their mismatches are therefore LATENT — wrong types waiting for the first caller, not current breakage.",
+  "note": "Long strings in every `actual` sample are truncated at 300 chars with a marker.",
+  "endpoints": [
+    {
+      "id": "AP-LIST",
+      "role": "LIVE — the press-release list page and the language hint the editor depends on",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Articles?Page=N&Size=N&ArtType=&SecId=&Cid=&HasThumbnail=",
+      "expected": {
+        "source": "interface ApiArticleListItem — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "articleId": "number",
+          "headline": "string | null",
+          "publishDate": "string | null",
+          "summary": "string | null",
+          "hasImage": "boolean",
+          "imageUrl": "string | null",
+          "language": "string | null — \"EN\" | \"JA\" | \"ZH-CN\" | \"ZH-TW\" on every row sampled",
+          "companies": "[{ companyId, companyName, logoFilename }]  — lowercase d",
+          "images": "[{ thumbImage, bigImage, caption }]"
+        },
+        "params": {
+          "ArtType": "the server's `ArtType`. No enumeration of the values is published.",
+          "SecId": "a sector id from lib/sectors.ts",
+          "Cid": "a company id",
+          "HasThumbnail": "boolean"
+        },
+        "volume": "78,874 articles, ~70 MB on the wire (repository.ts header). Paged, never synced in full."
+      },
+      "actual": {
+        "httpStatus": 200,
+        "topLevelKeysPerRow": [
+          "articleId", "headline", "publishDate", "summary",
+          "hasImage", "imageUrl", "language", "companies", "images"
+        ],
+        "undeclaredKeys": [],
+        "declaredButNeverReturned": [],
+        "shapeVerdict": "EXACT MATCH.",
+        "sample_firstRow": {
+          "articleId": 110114,
+          "headline": "Approval in Principle (AiP) Acquired for Standard Low-Pressure Liquefied CO2 Carrier toward Realization of CCS Business in Japan",
+          "publishDate": "2026-09-15T21:42:00",
+          "summary": "Six companies, including Mitsubishi Shipbuilding Co., Ltd., a part of Mitsubishi Heavy Industries (MHI) Group, Kawasaki Kisen Kaisha, Ltd. (&quot;K&quot; LINE)… [truncated, full length 740]",
+          "hasImage": false,
+          "imageUrl": null,
+          "language": "EN",
+          "companies": [
+            { "companyId": 82, "companyName": "Mitsubishi Heavy Industries (MHI)", "logoFilename": "MHI_new.jpg" }
+          ],
+          "images": [
+            { "thumbImage": "", "bigImage": "260915_en_0.jpg.jpg", "caption": "" }
+          ]
+        },
+        "measuredOver100Rows": {
+          "languages": ["EN", "ZH-TW", "ZH-CN", "JA"],
+          "imageUrlNonNull": "0 / 100",
+          "hasImageTrue": "0 / 100",
+          "rowsWithNonEmptyImages": "28 / 100",
+          "rowsWithEmptyCompanies": "0 / 100"
+        },
+        "measuredVolume": {
+          "totalArticles": 80602,
+          "pagesAtSize100": 807,
+          "lastPageRows": 2,
+          "probe": "Page=806 → 100 rows, Page=807 → 2 rows, Page=808 → []"
+        },
+        "paramBehaviour": {
+          "HasThumbnail=true": "WORKS — returns a different id set, every row carrying a non-empty images[]",
+          "SecId=186": "IGNORED — byte-identical id sequence to the unfiltered call (110114,110113,110112,110106,110108)",
+          "ArtType=1": "IGNORED — same identical id sequence",
+          "Cid=82 / 574 / 9453": "[] — real company ids return nothing",
+          "Cid=2 / 3 / 4 / 5": "each returns a distinct, non-empty article set. Cid is a SOURCE id, not a company id. See AP-M4.",
+          "Size=101": "400 — \"Size must be between 1 and 100.\"",
+          "Page past end": "200 with []"
+        }
+      }
+    },
+    {
+      "id": "AP-DETAIL",
+      "role": "LIVE — the article editor's body, sectors, sub-headline and issuer list",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Articles/press-release/{artId}",
+      "probedWith": ["109894 (EN, 2 companies, 4 sectors, 1 image)", "106708 (ZH-TW, 1 company, 1 sector, no image)", "+ 11 more"],
+      "expected": {
+        "source": "interface ApiPressRelease — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "articleId": "number",
+          "headline / subHeadLine / body / bodyText / bodyHtml": "string | null",
+          "publishDate / summary": "string | null",
+          "sourceId": "number | null",
+          "sourceName": "string | null",
+          "hasImage / hasFile": "boolean",
+          "companies": "ApiArticleCompany[]  — companyID, capital D",
+          "images": "ApiArticleImage[]",
+          "sectors": "string[]  — sector NAMES, matching sector_name in lib/sectors.ts",
+          "topicName": "string | null — constant \"Press release summary\"; deliberately NOT mapped to topic"
+        },
+        "declaredAbsent": "No `language` field. map-article.ts mapPressRelease() takes it as `options.language`, threaded in by the caller from the cached list row: \"The detail endpoint carries the body but not the language\" (repository.ts:566)."
+      },
+      "actual": {
+        "httpStatus": 200,
+        "notFoundStatus": "404 for an unknown id (probed 99999999), RFC9110 problem+json — correct",
+        "topLevelKeys": [
+          "articleId", "headline", "subHeadLine", "body", "bodyText", "bodyHtml",
+          "publishDate", "summary", "sourceId", "language", "hasImage", "hasFile",
+          "companies", "images", "sectors", "topicName", "sourceName"
+        ],
+        "undeclaredKeys": ["language"],
+        "declaredButNeverReturned": [],
+        "sample_109894": {
+          "articleId": 109894,
+          "headline": "NEC and Mitsubishi Heavy Industries to Form Strategic Alliance to Further Strengthen and Transform Defense Capabilities",
+          "subHeadLine": "- Collaboration in areas such as operation plans, command and control, and unmanned assets -",
+          "body": null,
+          "bodyText": "NEC Corporation (NEC; TSE: 6701) and Mitsubishi Heavy Industries, Ltd. (TSE: 7011) have signed a memorandum of understanding (MOU) toward a strategic partnership in the defense sector… [truncated, full length 3557]",
+          "bodyHtml": "<p><strong>TOKYO, September 8, 2026 - (JCN Newswire) -</strong> <a href=\"https://group.nec/global/en/\">NEC Corporation</a> (NEC; TSE: 6701) and Mitsubishi Heavy Industries, Ltd.… [truncated, full length 4050]",
+          "publishDate": "2026-09-08T22:00:00",
+          "summary": "NEC Corporation (NEC; TSE: 6701) and Mitsubishi Heavy Industries, Ltd. (TSE: 7011) have signed a memorandum of understanding (MOU) toward a strategic partnership in the defense sector.",
+          "sourceId": 3,
+          "language": "EN",
+          "hasImage": false,
+          "hasFile": false,
+          "companies": [
+            {
+              "companyID": 82,
+              "topLogoFileName": "MHI_newT.jpg",
+              "logoFileName": "MHI_new.jpg",
+              "companyURL": "www.mhi.com ",
+              "companyName": "Mitsubishi Heavy Industries (MHI)",
+              "sectorName": "Business",
+              "companyNameCH": "Mitsubishi Heavy Industries (MHI)",
+              "companyNameCT": "Mitsubishi Heavy Industries (MHI)",
+              "companyNameJP": "Mitsubishi Heavy Industries (MHI)",
+              "companyNameKO": "Mitsubishi Heavy Industries (MHI)"
+            },
+            { "companyID": 86, "companyName": "NEC Corporation", "…": "same shape" }
+          ],
+          "images": [{ "thumbImage": "", "bigImage": "NEC-pic.jpg", "caption": "" }],
+          "sectors": ["Enterprise IT", "Aerospace & Defence", "Artificial Intel [AI]", "Automation [IoT]"],
+          "topicName": "Press release summary",
+          "sourceName": "JCN Newswire"
+        },
+        "sample_106708_differencesOnly": {
+          "language": "ZH-TW",
+          "sourceId": 2,
+          "sourceName": "ACN Newswire",
+          "sectors": ["Healthcare & Pharm"],
+          "images": [],
+          "companiesCount": 1
+        },
+        "measuredOver13Samples": {
+          "sourceId→sourceName": { "2": "ACN Newswire", "3": "JCN Newswire" },
+          "topicName": "\"Press release summary\" on all 13 — the constant is confirmed",
+          "language": ["EN", "ZH-CN", "ZH-TW", "KO"],
+          "body": "null on all 13; bodyHtml always carries the markup",
+          "sectors": "a real JSON array on all 13, never a JSON-encoded string"
+        }
+      }
+    },
+    {
+      "id": "AP-SEARCH",
+      "role": "LATENT — typed and exported, no caller in app code",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Articles/search?ExchangeId=&SectorName=&CompanyName=&TickerId=&Country=&Page=&Size=",
+      "expected": {
+        "source": "endpoints.ts declares the return type as `Promise<ApiArticleListItem[]>` — i.e. the same nine-key row as AP-LIST, with nested `companies[]` and `images[]`.",
+        "httpStatus": 200,
+        "codeComment": "\"Every filter is an exact-match lookup on the wire, not a substring search: CompanyName=Umetal came back empty for a company that exists.\""
+      },
+      "actual": {
+        "httpStatus": 200,
+        "shapeVerdict": "COMPLETELY DIFFERENT SHAPE — 34 keys, flat, no `companies[]` and no `images[]`. This is an article × company × exchange-listing JOIN row, not a list row.",
+        "topLevelKeysPerRow": [
+          "articleId", "headline", "publishDate", "summary", "sourceId", "language",
+          "hasImage", "hasFile", "bodyText", "bodyHtml",
+          "companyId", "topLogoFileName", "logoFileName", "companyURL", "companyName",
+          "sectorName", "companyNameCH", "companyNameCT", "companyNameJP", "companyNameKO",
+          "country", "exchangeId", "exchangeIdent", "exchangeName",
+          "bloombergId", "bloombergCode", "reutersId", "reutersCode",
+          "yahooCode", "googleCode", "financialContentCode", "ticker", "bloomberg", "reuters"
+        ],
+        "undeclaredKeys": "all 25 of the company/exchange/quote-code fields",
+        "declaredButNeverReturned": ["companies", "images", "imageUrl"],
+        "sample_firstRow": {
+          "articleId": 110114,
+          "headline": "Approval in Principle (AiP) Acquired for Standard Low-Pressure Liquefied CO2 Carrier toward Realization of CCS Business in Japan",
+          "publishDate": "2026-09-15T21:42:00",
+          "summary": "Six companies, including Mitsubishi Shipbuilding Co., Ltd.… [truncated, full length 740]",
+          "sourceId": 3,
+          "language": "EN",
+          "hasImage": false,
+          "hasFile": false,
+          "bodyText": "Six companies, including Mitsubishi Shipbuilding Co., Ltd.… [truncated, full length 4796]",
+          "bodyHtml": "<p><strong>TOKYO, September 15, 2026 - (JCN Newswire) - </strong>Six companies… [truncated, full length 5187]",
+          "companyId": 82,
+          "topLogoFileName": "MHI_newT.jpg",
+          "logoFileName": "MHI_new.jpg",
+          "companyURL": "www.mhi.com ",
+          "companyName": "Mitsubishi Heavy Industries (MHI)",
+          "sectorName": "Business",
+          "companyNameCH": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameCT": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameJP": "Mitsubishi Heavy Industries (MHI)",
+          "companyNameKO": "Mitsubishi Heavy Industries (MHI)",
+          "country": "Japan",
+          "exchangeId": 34,
+          "exchangeIdent": "XFRA",
+          "exchangeName": "Frankfurt Stock exchange",
+          "bloombergId": 34,
+          "bloombergCode": "GR",
+          "reutersId": 34,
+          "reutersCode": "F",
+          "yahooCode": "F",
+          "googleCode": "FRA",
+          "financialContentCode": "FRA",
+          "ticker": "MIH",
+          "bloomberg": "",
+          "reuters": ""
+        },
+        "pagingBehaviour": {
+          "Size=2 → 2 rows / 1 distinct article": "one row per exchange listing",
+          "Size=10 → 10 rows / 3 distinct articles": "ids 110114×4, 110113×4, 110112×2 — the fan-out is visible",
+          "Size=20, 50, 100 → 10 rows each": "the result set caps at 10 rows regardless of Size",
+          "Page=2, Page=3 at Size=10 → []": "Page does not advance. Unfiltered search is effectively a fixed 10-row window."
+        },
+        "filterBehaviour": {
+          "CompanyName=Mitsubishi Heavy Industries (MHI)": "2 rows — exact match works",
+          "CompanyName=Umetal": "0 rows — confirms the exact-match-only note, and that it fails even on an exact company name that exists",
+          "TickerId=7011": "2 rows",
+          "Country=Japan": "2 rows",
+          "ExchangeId=XTKS": "2 rows",
+          "SectorName=Business": "2 rows"
+        }
+      }
+    },
+    {
+      "id": "AP-FEED",
+      "role": "LATENT — by-company / by-industry / homepage, typed as one shape, no caller in app code",
+      "method": "GET",
+      "urls": [
+        "https://development.acnnewswire.com/api/Articles/homepage?hasThumbnail=",
+        "https://development.acnnewswire.com/api/Articles/by-industry?industry=&pageNumber=&pageSize=&hasThumbnail=",
+        "https://development.acnnewswire.com/api/Articles/by-company/{companyId}?pageNumber=&pageSize=&hasThumbnail="
+      ],
+      "expected": {
+        "source": "interface ApiArticleFeedItem — src/lib/api/types.ts, mapped by mapArticleFeedItem()",
+        "httpStatus": 200,
+        "shape": {
+          "articleId": "number",
+          "headline / publishDate / summary": "string | null",
+          "sourceId": "number | null",
+          "hasImage / hasFile": "boolean",
+          "sectorName": "string | null — the article's sector, the ONLY classification source for these rows",
+          "companies": "ApiArticleCompany[]",
+          "images": "ApiArticleImage[]"
+        },
+        "codeComment": "\"These carry the article's sector and source but no `language`, and nest the fuller company shape — the opposite trade from ApiArticleListItem.\"",
+        "homepageComment": "endpoints.ts: \"returned [] on the dev host when sampled\"",
+        "industryComment": "endpoints.ts: \"`industry` matches a `sector_name`\" — i.e. a value from lib/sectors.ts"
+      },
+      "actual": {
+        "verdict": "THREE endpoints, TWO different shapes — and the type models only one of them.",
+        "homepage": {
+          "httpStatus": 200,
+          "rowsReturned": 50,
+          "rowsWithHasThumbnailTrue": 30,
+          "topLevelKeysPerRow": ["articleId", "headline", "publishDate", "summary", "sourceId", "hasImage", "hasFile", "sectorName", "companies", "images"],
+          "shapeVerdict": "EXACT MATCH to ApiArticleFeedItem.",
+          "distinctSectorName": ["Automotive", "Business", "Healthcare", "Industrial", "Technology"],
+          "distinctSourceId": [2, 3],
+          "sample_companies_0": {
+            "companyID": 525,
+            "topLogoFileName": "LukFook68.jpg",
+            "logoFileName": "LukFook.220.jpg",
+            "companyURL": "www.lukfook.com.hk",
+            "companyName": "Luk Fook Holdings (International) Ltd.",
+            "sectorName": "Automotive",
+            "companyNameCH": "六福集团(国际)有限公司",
+            "companyNameCT": "六福集團(國際)有限公司",
+            "companyNameJP": "Luk Fook Holdings (International) Ltd.",
+            "companyNameKO": ""
+          },
+          "note": "NOT empty — the \"returned [] on the dev host\" comment in endpoints.ts is stale."
+        },
+        "by-industry": {
+          "httpStatus": 200,
+          "shapeVerdict": "Matches ApiArticleFeedItem when it returns rows.",
+          "noIndustryParam": "400 — {\"errors\":{\"industry\":[\"The industry field is required.\"]}}",
+          "taxonomyProbe": "All 75 distinct sector_name values in src/lib/sectors.ts were tried. Only FOUR returned rows: Automotive, Food & Beverage, BioTech, Trade Shows.",
+          "whatDoesWork": "The coarse values that appear as `sectorName` on article rows: Business, Healthcare, Technology, Industrial, Automotive — of which only Automotive is a sector_name in lib/sectors.ts. Business, Technology and Industrial are sector_TYPE values there; Healthcare is neither (the master list calls that category Medicine).",
+          "failedExamples": "industry=Enterprise IT → []; industry=Healthcare & Pharm → []. Both are real sector names the press-release endpoint returns in its own `sectors[]`."
+        },
+        "by-company": {
+          "httpStatus": 200,
+          "notFoundStatus": "404 for an unknown company id, and 404 for a page past the end (pageNumber=999) — NOT [] the way /api/Articles does it",
+          "topLevelKeysPerRow": [
+            "articleId", "headline", "subHeadLine", "body", "bodyText", "bodyHtml",
+            "publishDate", "summary", "sourceId", "language", "hasImage", "hasFile",
+            "companies", "images", "sectors", "topicName", "sourceName"
+          ],
+          "shapeVerdict": "NOT ApiArticleFeedItem. It is the AP-DETAIL shape — the full article, body and all.",
+          "undeclaredKeys": ["subHeadLine", "body", "bodyText", "bodyHtml", "language", "sectors", "topicName", "sourceName"],
+          "declaredButNeverReturned": ["sectorName"],
+          "measuredOver20Rows": {
+            "rowsWithTopLevelSectorName": "0 / 20 — the key is absent entirely",
+            "rowsWithNonEmptySectors": "0 / 20 — the array is present but always []",
+            "languages": ["EN", "JA"],
+            "topicName": "null on all 20",
+            "sourceName": "null on all 20 — present as a key but never filled, unlike on AP-DETAIL"
+          },
+          "sample_firstRow": {
+            "articleId": 110114,
+            "headline": "Approval in Principle (AiP) Acquired for Standard Low-Pressure Liquefied CO2 Carrier toward Realization of CCS Business in Japan",
+            "subHeadLine": "-- First Successful Result for a Standard Design Framework Utilizing MILES --<BR />- AiP acquired after completing risk assessment of CO2 handling operations specific to low-pressure liquefied CO2 carriers… [truncated, full length 423]",
+            "body": null,
+            "bodyText": "Six companies, including Mitsubishi Shipbuilding Co., Ltd.… [truncated, full length 4796]",
+            "bodyHtml": "<p><strong>TOKYO, September 15, 2026 - (JCN Newswire) - </strong>Six companies… [truncated, full length 5187]",
+            "publishDate": "2026-09-15T21:42:00",
+            "summary": "Six companies, including Mitsubishi Shipbuilding Co., Ltd.… [truncated, full length 740]",
+            "sourceId": 3,
+            "language": "EN",
+            "hasImage": false,
+            "hasFile": false,
+            "companies": [
+              {
+                "companyID": 82,
+                "topLogoFileName": "MHI_newT.jpg",
+                "logoFileName": "MHI_new.jpg",
+                "companyURL": "www.mhi.com ",
+                "companyName": "Mitsubishi Heavy Industries (MHI)",
+                "sectorName": "Business",
+                "companyNameCH": "Mitsubishi Heavy Industries (MHI)",
+                "companyNameCT": "Mitsubishi Heavy Industries (MHI)",
+                "companyNameJP": "Mitsubishi Heavy Industries (MHI)",
+                "companyNameKO": "Mitsubishi Heavy Industries (MHI)"
+              }
+            ],
+            "images": [{ "thumbImage": "", "bigImage": "260915_en_0.jpg.jpg", "caption": "" }],
+            "sectors": [],
+            "topicName": null,
+            "sourceName": null
+          },
+          "cost": "3 rows = 32.6 KB. A 15-row feed transfers ~160 KB where the declared shape would be ~8 KB."
+        }
+      }
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "AP-M1",
+      "severity": "HIGH",
+      "status": "LATENT — searchArticles has no caller; this breaks the moment it gets one",
+      "field": "GET /api/Articles/search return type",
+      "expected": "`Promise<ApiArticleListItem[]>` — nine keys with nested `companies[]` and `images[]`.",
+      "actual": "A flat 34-key article × company × exchange JOIN row. There is no `companies` array and no `images` array at all; the single company is inlined as `companyId`/`companyName`/`logoFileName`, and the exchange listing is inlined as `exchangeIdent`/`tickerId`/`bloombergCode`/`reutersCode`/`yahooCode`/`googleCode`/`financialContentCode`.",
+      "impact": "`mapArticleListItem` opens with `api.companies.map(...)`. On a search row `companies` is undefined, so the first call throws a TypeError. Nothing calls it today, which is the only reason this has not been seen.",
+      "fix": "Declare a separate `ApiArticleSearchItem` and a `mapArticleSearchItem`, or normalise search rows into the list shape at the endpoint boundary. Do NOT keep the current declaration — it is the single most misleading type in the folder.",
+      "where": "src/lib/api/endpoints.ts — searchArticles(), src/lib/api/map-article.ts — mapArticleListItem()"
+    },
+    {
+      "id": "AP-M2",
+      "severity": "HIGH",
+      "status": "LATENT — fetchArticlesByCompany has no caller",
+      "field": "GET /api/Articles/by-company/{id} row shape",
+      "expected": "ApiArticleFeedItem, carrying `sectorName` and no `language` — the same shape as homepage and by-industry.",
+      "actual": "The AP-DETAIL shape. `sectorName` is ABSENT; `language`, `sectors`, `bodyHtml`, `bodyText`, `subHeadLine`, `topicName` and `sourceName` are all present and undeclared. `sectors` is [] on every row and `sourceName` is null on every row, so neither substitutes for the missing `sectorName`.",
+      "impact": "`mapArticleFeedItem` reads `str(api.sectorName)` → null → `mapClassification([])` → sector_type null, industries [], classification_overridden false. Every release in a company feed would land unclassified, while `language` — which IS on the wire — is thrown away.",
+      "fix": "Three endpoints, two shapes: type by-company off the press-release shape (it is the same row), keep ApiArticleFeedItem for homepage and by-industry, and read `language` where it exists.",
+      "where": "src/lib/api/types.ts — ApiArticleFeedItem, src/lib/api/map-article.ts — mapArticleFeedItem()"
+    },
+    {
+      "id": "AP-M3",
+      "severity": "medium",
+      "status": "LIVE",
+      "field": "press-release/{id}.language",
+      "expected": "Absent. repository.ts:566 — \"The detail endpoint carries the body but not the language, and the list row carries the language but not the body, so the language is threaded in from\" the cached list row: `const language = cached?.languages[0] ?? null`.",
+      "actual": "The detail endpoint DOES return `language` — \"EN\", \"ZH-CN\", \"ZH-TW\", \"KO\" across 13 samples. It is an undeclared key on ApiPressRelease.",
+      "impact": "Opening an article whose list row is not in the cache — a direct URL visit, a cold cache, a cleared IndexedDB — loses the language and the editor falls back to createArticle's default of English. The correct value was in the response the whole time. Mapping it directly also removes the coupling between loadArticleRecord and the list cache.",
+      "fix": "Add `language: string | null` to ApiPressRelease and read `options.language ?? api.language` in mapPressRelease. One line each, no behaviour change when the cache is warm.",
+      "where": "src/lib/api/types.ts — ApiPressRelease, src/lib/api/map-article.ts — mapPressRelease(), src/lib/api/repository.ts:578-581"
+    },
+    {
+      "id": "AP-M4",
+      "severity": "medium",
+      "status": "LIVE",
+      "field": "GET /api/Articles — ArtType, SecId, Cid",
+      "expected": "endpoints.ts documents `SecId` as \"a sector id from lib/sectors.ts\", `Cid` as \"a company id\", `ArtType` as \"the server's ArtType. No enumeration of the values is published.\"",
+      "actual": "SecId and ArtType are IGNORED — SecId=186 and ArtType=1 each return the byte-identical id sequence to an unfiltered call (110114, 110113, 110112, 110106, 110108). Cid is NOT a company id: 82, 574 and 9453 all return [], while 2, 3, 4 and 5 each return a distinct non-empty set — the same small numbers that appear as `sourceId` on article rows. Only HasThumbnail actually filters.",
+      "impact": "Any list filter built on SecId or ArtType silently returns unfiltered data — the worst failure mode, because it looks like it worked. A \"filter by company\" built on Cid returns nothing for every real company id.",
+      "fix": "Do not expose SecId/ArtType as filters. Filter by company via /by-company/{id} once AP-M2 is settled. Correct the Cid comment to \"a source/wire id (2 = ACN, 3 = JCN)\" — or confirm with the API team, since a parameter named Cid behaving as a source id is more likely a backend bug than a naming choice.",
+      "where": "src/lib/api/endpoints.ts — ArticleListParams"
+    },
+    {
+      "id": "AP-M5",
+      "severity": "medium",
+      "status": "LATENT",
+      "field": "by-industry `industry` taxonomy",
+      "expected": "\"`industry` matches a `sector_name`\" — a value from lib/sectors.ts.",
+      "actual": "Only 4 of the 75 sector_names in lib/sectors.ts return rows (Automotive, Food & Beverage, BioTech, Trade Shows). What the endpoint actually matches is the article's own coarse `sectorName`, whose observed value space is Business, Healthcare, Technology, Industrial, Automotive — and three of those five are sector_TYPE values in the master list, not sector_names.",
+      "impact": "An industry filter driven from the app's sector list would come back empty for 71 of 75 options. This is the THIRD taxonomy in play: press-release `sectors[]` uses fine-grained names (\"Enterprise IT\", \"Healthcare & Pharm\"), article `sectorName` uses the coarse set, and lib/sectors.ts has its own ids. See AC-M1 for the id half of the same problem.",
+      "fix": "Drive the filter from the coarse `sectorName` values observed on the wire, not from lib/sectors.ts. Longer term this needs one taxonomy agreed with the API team.",
+      "where": "src/lib/api/endpoints.ts — fetchArticlesByIndustry()"
+    },
+    {
+      "id": "AP-M6",
+      "severity": "medium",
+      "status": "LIVE",
+      "field": "hasImage / imageUrl",
+      "expected": "`hasImage: boolean` — whether the article has an image. `imageUrl: string | null`.",
+      "actual": "Over 100 consecutive list rows: `hasImage` was false on 100/100 while 28 of them carried a non-empty `images[]`. `imageUrl` was null on 100/100 — never populated on any row of any endpoint sampled.",
+      "impact": "`hasImage` is not a usable signal; `images.length > 0` is. `imageUrl` is dead weight in the type. Note the contrast: the `HasThumbnail=true` QUERY parameter works correctly, so the server can tell which articles have images — it just does not say so in this field.",
+      "fix": "Branch on `images.length`, never on `hasImage`. Mark `imageUrl` as never-populated in types.ts rather than deleting it, since it is in the wire response.",
+      "where": "src/lib/api/types.ts — ApiArticleListItem"
+    },
+    {
+      "id": "AP-M7",
+      "severity": "low",
+      "status": "LIVE",
+      "field": "end-of-list signal is not uniform",
+      "expected": "One paging contract.",
+      "actual": "/api/Articles past the last page returns 200 with []. /api/Articles/by-company past the last page returns 404. /api/Articles/search ignores Page entirely (Page=2 → [] at any Size).",
+      "impact": "A shared paging helper has to treat a 404 as end-of-list for one endpoint and as a real error for another. repository.ts's sweep stops on a short page, which handles the [] case; a 404 currently surfaces as an ApiError.",
+      "where": "src/lib/api/repository.ts — the paging sweep"
+    },
+    {
+      "id": "AP-M8",
+      "severity": "low",
+      "status": "STALE COMMENT",
+      "field": "/api/Articles/homepage",
+      "expected": "endpoints.ts: \"returned `[]` on the dev host when sampled.\"",
+      "actual": "Returns 50 rows (30 with hasThumbnail=true), matching ApiArticleFeedItem exactly.",
+      "impact": "None — but the comment would stop someone building on a working endpoint.",
+      "where": "src/lib/api/endpoints.ts — fetchHomepageArticles()"
+    },
+    {
+      "id": "AP-M9",
+      "severity": "low",
+      "status": "CONFIRMED CORRECT",
+      "field": "sectors, topicName, body, sourceId→sourceName, language tags",
+      "expected": "`sectors: string[]` (a real array); `topicName` a constant section label, deliberately not mapped to `topic`; `body` null with `bodyHtml` carrying the markup; sourceId 2 = ACN, 3 = JCN; wire language tags ZH-CN/ZH-TW mapped to ZH-HANS/ZH-HANT.",
+      "actual": "All five confirmed across 13 press-release samples and 100 list rows. `sectors` is a real JSON array (NOT the JSON-encoded string the public site's code expects — this repo has it right). `topicName` is \"Press release summary\" on all 13. `body` is null on all 13. Only sourceIds 2 and 3 were observed. Languages observed: EN, JA, ZH-CN, ZH-TW, KO — all five are in LANGUAGE_BY_API_TAG.",
+      "impact": "No action. Recorded because these are the assumptions most likely to be doubted during unification, and because the public site's repo is WRONG about `sectors` where this one is right.",
+      "where": "src/lib/api/types.ts, src/lib/api/map-article.ts"
+    }
+  ],
+  "verdict": {
+    "endpointHealth": "HEALTHY — all six endpoints return 200 and 404 correctly on unknown ids.",
+    "shapeFidelity": "Split. The two endpoints the app actually calls are near-exact (AP-LIST is a perfect match; AP-DETAIL is a match plus one undeclared field it would benefit from). The four uncalled ones are the problem: two of them return a shape the types get materially wrong.",
+    "blockers": [],
+    "degraded": [
+      "Language lost on a cold-cache article open (AP-M3) — fixable in this repo today, two lines",
+      "SecId / ArtType filters silently return unfiltered data (AP-M4)",
+      "hasImage is false on every row that has an image (AP-M6)"
+    ],
+    "beforeFirstUse": [
+      "searchArticles WILL throw on its first call (AP-M1)",
+      "fetchArticlesByCompany WILL return unclassified releases (AP-M2)"
+    ]
+  }
+}

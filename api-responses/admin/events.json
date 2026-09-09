@@ -1,0 +1,239 @@
+{
+  "app": "acn-admin (this repo)",
+  "page": "Events",
+  "probedAt": "2026-09-10",
+  "probedFrom": "local machine, direct curl against development.acnnewswire.com — no proxy, no IndexedDB cache.",
+  "consumedBy": [
+    "src/lib/api/endpoints.ts — fetchEvents, fetchEvent, fetchEventReleases",
+    "src/lib/api/types.ts — ApiEvent, ApiEventRelease",
+    "src/lib/api/map-event.ts — mapEvent, mapEventCompany, mapEventRelease, toEventIso, toAbsoluteUrl, eventYear, isPublished",
+    "src/lib/api/repository.ts — loadEventRecord",
+    "src/types/event.types.ts — Event, EventCompany, EventRelease (implements the public site's schemas/events.json contract)"
+  ],
+  "headline": "The Events list has collapsed to 7 upcoming events with no organiser attached. Every event-to-press-release relation in this app is therefore unreachable, and three of map-event.ts's design decisions are now sized for data that is no longer there.",
+  "note": "Long strings in every `actual` sample are truncated at 300 chars with a marker.",
+  "endpoints": [
+    {
+      "id": "AE-LIST",
+      "role": "LIVE — the only working way to read events, and the source for a single event too",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Events?pageNumber=N&pageSize=N",
+      "expected": {
+        "source": "interface ApiEvent — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "id": "number",
+          "startDate / endDate": "string | null",
+          "description": "string | null — the event NAME, not prose",
+          "location": "string | null",
+          "url": "string | null — a bare hostname, normalised by toAbsoluteUrl()",
+          "inUrl": "string | null — a relative legacy-site link, e.g. events.asp?compid=23&yr=2007",
+          "eventImage": "string | null — a bare filename",
+          "lid": "string | null",
+          "publish": "string | null — \"y\" / \"n\"",
+          "compId": "number | null — the organiser, and the key that reaches the release feed",
+          "companies": "ApiArticleCompany[] — \"The organiser, repeated once per release it has — up to 168 identical entries on one event. mapEvent collapses them.\""
+        },
+        "volume": "839 events, 816 with publish=\"y\" (map-event.ts header). The dedupe in mapEvent() exists because of the 168-fold repetition.",
+        "mediaComment": "types.ts on eventImage: \"The serving path for these is not known — see ./media.ts.\""
+      },
+      "actual": {
+        "httpStatus": 200,
+        "rowsReturned": 7,
+        "responseSize": "1991 bytes",
+        "topLevelKeysPerRow": ["id", "startDate", "endDate", "description", "location", "url", "inUrl", "eventImage", "lid", "publish", "compId", "companies"],
+        "undeclaredKeys": [],
+        "declaredButNeverReturned": [],
+        "shapeVerdict": "EXACT MATCH on keys. The failure is entirely in the VALUES — compId is null and companies is empty on every row.",
+        "ids": [1104, 1115, 1126, 1124, 1109, 1110, 1119],
+        "dateRange": "2026-09-16 to 2026-12-02 — all future-dated as of the probe",
+        "compIdNullCount": "7 / 7",
+        "companiesEmptyCount": "7 / 7",
+        "publishValues": ["y"],
+        "lidValues": ["2"],
+        "inUrlValues": ["\"\" on all 7"],
+        "sample_firstRow": {
+          "id": 1104,
+          "startDate": "2026-09-16T00:00:00",
+          "endDate": "2026-09-18T00:00:00",
+          "description": "WBE 2026",
+          "location": "Guangzhou, China",
+          "url": "en.battery-expo.com",
+          "inUrl": "",
+          "eventImage": "2026WBE160.jpg",
+          "lid": "2",
+          "publish": "y",
+          "compId": null,
+          "companies": []
+        },
+        "allRows": [
+          { "id": 1104, "startDate": "2026-09-16T00:00:00", "endDate": "2026-09-18T00:00:00", "description": "WBE 2026", "location": "Guangzhou, China", "url": "en.battery-expo.com", "eventImage": "2026WBE160.jpg", "compId": null, "companies": [] },
+          { "id": 1115, "startDate": "2026-10-07T00:00:00", "endDate": "2026-10-08T00:00:00", "description": "India Collection Summit", "location": "Mumbai, India", "url": "india.collectionsummit.com", "eventImage": "CreditCollections2026.jpg", "compId": null, "companies": [] },
+          { "id": 1126, "startDate": "2026-10-13T00:00:00", "endDate": "2026-10-13T00:00:00", "description": "CDAO Perth 2026 ", "location": "Perth, Western Australia", "url": "cdao-perth.coriniumintelligence.com/", "eventImage": "2026CDAOPerth.jpg", "compId": null, "companies": [] },
+          { "id": 1124, "startDate": "2026-10-21T00:00:00", "endDate": "2026-10-22T00:00:00", "description": "EnerGex 2026", "location": "Kuala Lumpur, Malaysia", "url": "www.energexasia.com", "eventImage": "Energex2026ACNNewswire.jpeg", "compId": null, "companies": [] },
+          { "id": 1109, "startDate": "2026-11-04T00:00:00", "endDate": "2026-11-05T00:00:00", "description": "EDUtech Asia", "location": "Singapore", "url": "www.terrapinn.com/EDUtechAsia2026ACN", "eventImage": "ACN2Edutech.jpg", "compId": null, "companies": [] },
+          { "id": 1110, "startDate": "2026-11-04T00:00:00", "endDate": "2026-11-06T00:00:00", "description": "Singapore Urban Mobility Week", "location": "Singapore", "url": "sgurbanmobility.com/?utm_source=mediapartner-acn-newswire&utm_medium=event-listing", "eventImage": "SUMWMediaPartnerEvent.jpg", "compId": null, "companies": [] },
+          { "id": 1119, "startDate": "2026-12-02T00:00:00", "endDate": "2026-12-04T00:00:00", "description": "ceramics Vietnam 2026", "location": "Vietnam", "url": "aseanceramics.com/vietnam/", "eventImage": "stonevietnam.jpg", "compId": null, "companies": [] }
+        ],
+        "pagingBehaviour": {
+          "no params": "7 rows",
+          "pageNumber=2&pageSize=500": "[]",
+          "conclusion": "The endpoint returns its whole (now tiny) result set on page 1. pageSize is no longer meaningful."
+        }
+      }
+    },
+    {
+      "id": "AE-DETAIL",
+      "role": "NOT USED — endpoints.ts documents it as broken and repository.ts filters the list instead",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Events/{id}",
+      "expected": {
+        "source": "endpoints.ts: \"BROKEN SERVER-SIDE — answers 500 for every id tried, including ids taken straight out of the list response (163, 177, 155, 1). Kept because it is in the spec and because it will presumably be fixed. Do not build on it without checking it answers 200 first.\"",
+        "httpStatus": "500 (already documented as broken)"
+      },
+      "actual": {
+        "httpStatus": 500,
+        "probedWith": "1104 — an id taken straight out of the current list response",
+        "body": {
+          "message": "The required column 'Companies' was not present in the results of a 'FromSql' operation.",
+          "detail": "System.InvalidOperationException: The required column 'Companies' was not present in the results of a 'FromSql' operation.\r\n   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)\r\n   at Microsoft.EntityFramew… [truncated, full length 1488]"
+        },
+        "verdict": "CONFIRMED STILL BROKEN — same EF Core error, and now failing on the current id set too, not just the historical ids endpoints.ts recorded.",
+        "rootCause": "EF Core FromSql column mapping in the backend's EventService / EventsController.",
+        "errorBodyShape": "{message, detail} — a third error shape, distinct from both the RFC9110 problem+json and the {message} used by /api/CompContacts. See AC-M7."
+      }
+    },
+    {
+      "id": "AE-RELEASES",
+      "role": "LIVE by code, UNREACHABLE by data — the event → press-release relation",
+      "method": "GET",
+      "url": "https://development.acnnewswire.com/api/Events/company/{companyId}/year/{year}",
+      "probedWith": ["574 / 2026 (HKTDC)", "82 / 2026 (MHI)", "574 / 2007"],
+      "expected": {
+        "source": "interface ApiEventRelease — src/lib/api/types.ts",
+        "httpStatus": 200,
+        "shape": {
+          "articleId": "number",
+          "headline": "string | null",
+          "summary": "string | null",
+          "systemDate": "string | null — \"`systemDate` is the field name; there is no `publishDate` here\"",
+          "companyId": "number | null"
+        },
+        "usage": "endpoints.ts: \"pass the event's `compId` and the year of its `startDate`.\""
+      },
+      "actual": {
+        "httpStatus": 200,
+        "shapeVerdict": "EXACT MATCH on keys.",
+        "probe_574_2026": { "rowsReturned": 116, "responseSize": "52972 bytes" },
+        "probe_82_2026": { "responseSize": "63931 bytes", "note": "works for an ordinary company id too" },
+        "probe_574_2007": { "rowsReturned": 0, "note": "an empty year returns [], not 404" },
+        "keysPerRow": ["articleId", "headline", "summary", "systemDate", "companyId"],
+        "sample_firstRow": {
+          "articleId": 110008,
+          "headline": "The 11th Belt and Road Summit concludes successfully",
+          "summary": "The 11th Belt and Road Summit, co-organised by the Government of the Hong Kong Special Administrative Region and the Hong Kong Trade Development Council (HKTDC)… [truncated, full length 185]",
+          "systemDate": "2026-09-11T09:50:00",
+          "companyId": 2
+        },
+        "companyIdValues": "2, 3 and 4 across all 116 rows of the 574/2026 feed — NOT 574, and not any other real company id. These are the same small numbers that appear as `sourceId` on article rows. See AE-M4."
+      }
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "AE-M1",
+      "severity": "HIGH",
+      "status": "LIVE — backend-side, nothing this repo can fix",
+      "field": "compId",
+      "expected": "The organiser company id — the key that relates an event to its releases. repository.ts loadEventRecord passes it to fetchEventReleases(compId, year).",
+      "actual": "null on all 7 events.",
+      "impact": "No event in this app can show a single press release. AE-RELEASES itself is perfectly healthy — 574/2026 returns 116 rows — there is simply no value to pass it. The whole release-feed path is dead at the first hop.",
+      "fix": "Backend must populate compId, or expose an events endpoint that returns the organiser. Raise with the API team; there is no frontend workaround short of hardcoding a mapping.",
+      "where": "src/lib/api/repository.ts — loadEventRecord, src/lib/api/map-event.ts — mapEvent()"
+    },
+    {
+      "id": "AE-M2",
+      "severity": "HIGH",
+      "status": "LIVE — backend-side",
+      "field": "companies[]",
+      "expected": "An array of organiser companies, repeated once per release — types.ts: \"up to 168 identical entries on one event. mapEvent collapses them.\" The dedupe is the reason the mapped result is small enough to cache.",
+      "actual": "[] on all 7 events.",
+      "impact": "Event.companies is always []. `mapEventCompany` never runs, so no organiser name, logo or URL is ever produced. The dedupe in mapEvent() is a no-op, and the 168-fold-repetition rationale behind it no longer describes anything on the wire.",
+      "fix": "Backend. Keep the dedupe — it costs nothing and is correct if the data returns.",
+      "where": "src/lib/api/map-event.ts — mapEvent(), mapEventCompany()"
+    },
+    {
+      "id": "AE-M3",
+      "severity": "HIGH",
+      "status": "LIVE — needs a decision from the API team before any code changes",
+      "field": "result set size",
+      "expected": "839 events, 816 published, spanning 2007-11-18 to 2026-12-02 (map-event.ts header).",
+      "actual": "7 events, all future-dated (2026-09-16 to 2026-12-02), all publish=\"y\". Page 2 is empty at any pageSize.",
+      "impact": "The endpoint now behaves as an UPCOMING-EVENTS feed rather than an archive. Two consequences here: the events list shows 7 rows, and because repository.ts resolves a single event by filtering the list (AE-M5), only those 7 ids resolve — any historical event id is now a 404.",
+      "openQuestion": "Is this an intentional backend change or data loss? The public site's capture recorded the same drop on the same day. Worth one question to the API team before anyone re-sizes the paging or drops the cache design — the current code is correct-but-oversized, which is the safe direction to be wrong in.",
+      "where": "src/lib/api/map-event.ts — header comment, src/lib/api/repository.ts — loadEventRecord"
+    },
+    {
+      "id": "AE-M4",
+      "severity": "medium",
+      "status": "LIVE",
+      "field": "ApiEventRelease.companyId",
+      "expected": "`companyId: number | null` — the company the release is filed against, matching the {companyId} in the request path.",
+      "actual": "Values 2, 3 and 4 across all 116 rows of the 574/2026 feed. It does not echo 574 and it is not any real company id — these are the same small numbers that appear as `sourceId` on article rows (2 = ACN Newswire, 3 = JCN Newswire).",
+      "impact": "A field named companyId carries a source id. Nothing reads it today, so nothing is broken — but anyone unifying the article and event shapes will reasonably assume it joins to a company and it will not.",
+      "fix": "Rename in the type to reflect what it carries (`sourceId`), or confirm the intent with the API team. Note this is the SAME confusion as AP-M4, where the `Cid` query parameter on /api/Articles also behaves as a source id — two separate endpoints making the same substitution suggests a backend-wide naming problem, not two typos.",
+      "where": "src/lib/api/types.ts — ApiEventRelease"
+    },
+    {
+      "id": "AE-M5",
+      "severity": "medium",
+      "status": "LIVE — backend-side, already documented in this repo",
+      "field": "GET /api/Events/{id}",
+      "expected": "endpoints.ts already says it 500s and that repository.ts filters the list instead.",
+      "actual": "CONFIRMED still 500, now on the current id set (1104) as well as the historical ids originally recorded. Same EF Core 'Companies' column error.",
+      "impact": "The list-and-filter workaround in loadEventRecord is still required. Combined with AE-M3, that workaround is now also what limits event lookup to 7 ids.",
+      "where": "backend — acnnewswire-api EventService / EventsController"
+    },
+    {
+      "id": "AE-M6",
+      "severity": "low",
+      "status": "CONFIRMED CORRECT",
+      "field": "startDate / endDate",
+      "expected": "Offsetless date-only midnights. map-event.ts stamps WIRE_OFFSET = '+08:00' and pushes endDate to 23:59:59, because a browser would otherwise read the value in the visitor's own timezone and show an event on the 16th as the 15th.",
+      "actual": "CONFIRMED unchanged — \"2026-09-16T00:00:00\" on all 7 rows, no offset, no Z.",
+      "impact": "The +08:00 stamp is still needed and still correct. It remains a display-honesty patch over data the API does not carry, not a fact the API states.",
+      "where": "src/lib/api/map-event.ts — toEventIso(), WIRE_OFFSET"
+    },
+    {
+      "id": "AE-M7",
+      "severity": "low",
+      "status": "STALE COMMENT",
+      "field": "eventImage serving path",
+      "expected": "types.ts: \"A bare filename. The serving path for these is not known — see ./media.ts.\"",
+      "actual": "media.ts already resolves it: `eventImageUrl()` returns `${SITE_BASE}/eventimages/{filename}`. The path IS known; the comment contradicts the code next to it. Filenames confirmed bare on all 7 rows (e.g. \"2026WBE160.jpg\").",
+      "impact": "None functionally. Worth correcting so nobody re-investigates a solved question.",
+      "where": "src/lib/api/types.ts — ApiEvent.eventImage"
+    },
+    {
+      "id": "AE-M8",
+      "severity": "low",
+      "status": "LIVE",
+      "field": "publish / lid",
+      "expected": "`publish` is a \"y\"/\"n\" flag; isPublished() filters on it. 816 of 839 were \"y\". `lid` is \"2\" on all events — \"No variation, so nothing to model.\"",
+      "actual": "publish = \"y\" on all 7; lid = \"2\" on all 7. The filter now removes nothing.",
+      "impact": "None. Keep both — the filter costs nothing and the fields still exist.",
+      "where": "src/lib/api/map-event.ts — isPublished()"
+    }
+  ],
+  "verdict": {
+    "endpointHealth": "DEGRADED — AE-LIST returns 200 but with a drastically reduced result set and no organiser data; AE-DETAIL still 500s; AE-RELEASES is healthy but unreachable in practice.",
+    "shapeFidelity": "Both working endpoints match their declared shapes exactly. Every problem on this page is a DATA problem, not a shape problem — which is the opposite of the article endpoints.",
+    "blockers": [
+      "No event can show its press releases (AE-M1) — compId is null on every row",
+      "No event has an organiser (AE-M2) — companies[] is empty on every row",
+      "Only 7 event ids resolve (AE-M3) — every historical event is gone from the wire"
+    ],
+    "fixableHere": "Nothing of substance. AE-M4 and AE-M7 are type/comment corrections; the three blockers are all upstream.",
+    "nextStep": "This page is the one that needs the API team before it needs code. Ask three questions: is the 839 → 7 drop intentional, will compId be repopulated, and is /api/Events/{id} on the fix list."
+  }
+}
