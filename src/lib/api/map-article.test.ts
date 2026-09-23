@@ -195,10 +195,35 @@ describe('mapPressRelease', () => {
     expect(release.dateline_overridden).toBe(false)
   })
 
-  it('takes the language from the caller’s hint, since the detail endpoint has none', () => {
-    expect(mapPressRelease(PRESS_RELEASE, { language: 'ZH-TW' }).languages).toEqual(['ZH-HANT'])
-    // Without a hint it keeps createArticle's default.
-    expect(mapPressRelease(PRESS_RELEASE).languages).toEqual(['EN'])
+  // AP-M3. The detail endpoint DOES return `language` — the previous comment
+  // here claimed it did not, and the value was threaded in from a cached list
+  // row instead. These pin the new precedence: response first, hint second.
+  describe('language', () => {
+    it('takes it from the response', () => {
+      expect(mapPressRelease({ ...PRESS_RELEASE, language: 'ZH-TW' }).languages).toEqual(['ZH-HANT'])
+    })
+
+    it('prefers the response over a caller hint that disagrees', () => {
+      const release = mapPressRelease({ ...PRESS_RELEASE, language: 'ZH-TW' }, { language: 'EN' })
+      expect(release.languages).toEqual(['ZH-HANT'])
+    })
+
+    it('still honours the hint when the response omits it', () => {
+      // The field is typed optional: confirmed on the records probed, not across
+      // all 80,602 articles. Existing callers keep working unchanged.
+      expect(mapPressRelease({ ...PRESS_RELEASE, language: null }, { language: 'ZH-TW' }).languages)
+        .toEqual(['ZH-HANT'])
+    })
+
+    it('falls back to English only when neither has an answer', () => {
+      expect(mapPressRelease({ ...PRESS_RELEASE, language: null }).languages).toEqual(['EN'])
+    })
+
+    it('no longer loses the language on a cold cache', () => {
+      // The regression this fixes: a direct URL open with no cached list row.
+      // Before AP-M3 this returned ['EN'] for a Traditional Chinese release.
+      expect(mapPressRelease({ ...PRESS_RELEASE, language: 'ZH-TW' }, {}).languages).toEqual(['ZH-HANT'])
+    })
   })
 
   it('maps sourceName to both source and supplier', () => {

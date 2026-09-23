@@ -179,9 +179,20 @@ export function articleImageUrls(
 /**
  * `GET /api/Articles/press-release/{artId}` → PressRelease.
  *
- * `language` is a hint the caller threads through from a list response: the
- * detail endpoint has no language field, but the list row for the same article
- * does. Without it the release keeps `createArticle`'s default of English.
+ * `language` comes off the RESPONSE (AP-M3). The comment that used to sit here
+ * said the detail endpoint has no language field and that the value had to be
+ * threaded in by the caller from a cached list row. That was wrong — re-probed
+ * on 2026-09-10, this endpoint returns `language` on every record sampled.
+ *
+ * The distinction matters on a cold cache. Opening an article by direct URL, or
+ * after IndexedDB has been cleared, means there is no cached list row to thread
+ * from, so the release fell back to English while the correct value was sitting
+ * in the response all along.
+ *
+ * `options.language` is kept as a fallback rather than removed: it costs one
+ * `??`, it keeps every existing caller working unchanged, and `language` is
+ * typed optional because it was confirmed on the probed records, not across all
+ * 80,602 articles. The response wins whenever it has an answer.
  */
 export function mapPressRelease(
   api: ApiPressRelease,
@@ -192,7 +203,7 @@ export function mapPressRelease(
   // `bodyHtml` is the markup the editor wants. `body` has been null on every
   // record sampled; `bodyText` is the flattened copy and the last resort.
   const bodyHtml = str(api.bodyHtml) ?? str(api.body) ?? str(api.bodyText)
-  const language = mapLanguage(options.language)
+  const language = mapLanguage(api.language) ?? mapLanguage(options.language)
 
   return {
     ...base,

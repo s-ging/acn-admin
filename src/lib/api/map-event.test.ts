@@ -5,11 +5,12 @@ import {
   isPublished,
   mapEvent,
   mapEventCompany,
+  mapEventFull,
   mapEventRelease,
   toAbsoluteUrl,
   toEventIso,
 } from './map-event'
-import type { ApiArticleCompany, ApiEvent } from './types'
+import type { ApiArticleCompany, ApiEvent, ApiEventFull } from './types'
 
 // The fixtures are real responses from development.acnnewswire.com, trimmed but
 // not reshaped — event 163, the one the published contract uses as its example.
@@ -243,5 +244,103 @@ describe('canHaveReleases', () => {
     expect(canHaveReleases(mapEvent(EVENT))).toBe(true)
     expect(canHaveReleases(mapEvent({ ...EVENT, compId: null }))).toBe(false)
     expect(canHaveReleases(mapEvent({ ...EVENT, startDate: null, endDate: null }))).toBe(false)
+  })
+})
+
+// ── /api/Events/full ────────────────────────────────────────────────────────
+//
+// Real response for event 163, verbatim from the live probe of 2026-09-23 —
+// the same event as the legacy fixture above, which is what makes the parity
+// test below meaningful.
+
+const EVENT_FULL: ApiEventFull = {
+  id: 163,
+  name: '3rd Asian Publishing Convention',
+  startDate: '2009-07-16T00:00:00+08:00',
+  endDate: '2009-07-17T23:59:59+08:00',
+  location: 'Manila',
+  url: 'https://www.publishingconvention.com',
+  photo: 'https://www.acnnewswire.com/eventimages/ap10.jpg',
+  isPublished: true,
+  organiserId: 714,
+  organisers: [
+    {
+      id: 714,
+      name: 'Asian Publishing Convention',
+      logo: 'https://www.acnnewswire.com/images/company/AP10.gif',
+      url: 'https://publishingconvention.com',
+    },
+  ],
+}
+
+describe('mapEventFull', () => {
+  it('maps the reconciled shape onto the unchanged app model', () => {
+    const event = mapEventFull(EVENT_FULL)
+
+    expect(event.id).toBe(163)
+    // `name` on the wire, still `description` on the contract.
+    expect(event.description).toBe('3rd Asian Publishing Convention')
+    // `organiserId`/`organisers` on the wire, still `compId`/`companies`.
+    expect(event.compId).toBe(714)
+    expect(event.companies).toEqual([
+      {
+        id: 714,
+        name: 'Asian Publishing Convention',
+        logo: 'https://www.acnnewswire.com/images/company/AP10.gif',
+        url: 'https://publishingconvention.com',
+      },
+    ])
+  })
+
+  it('passes the wire offsets through instead of re-stamping them', () => {
+    const event = mapEventFull(EVENT_FULL)
+    expect(event.startDate).toBe('2009-07-16T00:00:00+08:00')
+    // Already 23:59:59 upstream - not pushed there a second time.
+    expect(event.endDate).toBe('2009-07-17T23:59:59+08:00')
+  })
+
+  it('produces the same record as the legacy mapper for the same event', () => {
+    // The whole point of the admin's two-source events loader: rows that come
+    // from /full and rows that come from the legacy sweep have to be
+    // indistinguishable once mapped, or the list renders two shapes.
+    expect(mapEventFull(EVENT_FULL)).toEqual(mapEvent(EVENT))
+  })
+
+  it('still repairs a relative url, should the wire regress', () => {
+    const event = mapEventFull({ ...EVENT_FULL, url: 'www.example.com' })
+    expect(event.url).toBe('https://www.example.com')
+  })
+
+  it('still stamps an offset onto an offsetless date, should the wire regress', () => {
+    const event = mapEventFull({
+      ...EVENT_FULL,
+      startDate: '2009-07-16T00:00:00',
+      endDate: '2009-07-17T00:00:00',
+    })
+    expect(event.startDate).toBe('2009-07-16T00:00:00+08:00')
+    expect(event.endDate).toBe('2009-07-17T23:59:59+08:00')
+  })
+
+  it('treats organiserId 0 as no organiser', () => {
+    expect(mapEventFull({ ...EVENT_FULL, organiserId: 0 }).compId).toBeNull()
+  })
+
+  it('handles the 708 events with no organiser at all', () => {
+    const event = mapEventFull({ ...EVENT_FULL, organiserId: null, organisers: [] })
+    expect(event.compId).toBeNull()
+    expect(event.companies).toEqual([])
+    expect(canHaveReleases(event)).toBe(false)
+  })
+
+  it('drops an organiser with no usable name', () => {
+    const event = mapEventFull({
+      ...EVENT_FULL,
+      organisers: [{ id: 714, name: '  ', logo: null, url: null }],
+    })
+    expect(event.companies).toEqual([])
+  })
+
+  it('tolerates a null organisers array', () => {
+    expect(mapEventFull({ ...EVENT_FULL, organisers: null }).companies).toEqual([])
   })
 })

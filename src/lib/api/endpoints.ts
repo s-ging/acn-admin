@@ -2,14 +2,21 @@
 // One function per operation in the swagger document, with the server's own
 // parameter names and constraints kept intact.
 //
-// All thirteen operations are covered. They return wire shapes, not app models
+// All seventeen operations are covered. They return wire shapes, not app models
 // — mapping to CompanyFull / PressRelease happens in ./map-company.ts and
 // ./map-article.ts, so a caller that just wants to read the API can.
 //
-// Note the two casings for paging: /api/Articles, /api/Articles/search,
-// /api/Companies and /api/Companies/{id} take `Page`/`Size`, while
-// /api/Articles/by-industry, /by-company and /api/Events take
-// `pageNumber`/`pageSize`. That is the server's inconsistency, not a typo here.
+// Note the THREE casings for paging, all of them the server's inconsistency
+// rather than typos here:
+//   Page/Size             /api/Articles, /api/Articles/search, /api/Companies,
+//                         /api/Companies/{id}
+//   pageNumber/pageSize   /api/Articles/by-industry, /by-company, /api/Events
+//   PageNumber/PageSize   /api/Events/full
+//
+// The `/full` routes (/api/Events/full, /api/Events/{id}/full,
+// /api/Companies/{id}/full) and /api/Sectors were added alongside the originals,
+// which all still answer. See the ApiEventFull and ApiCompanyFull notes in
+// ./types.ts for what moved between the two shapes.
 
 import { apiGet } from './client'
 import type {
@@ -18,8 +25,10 @@ import type {
   ApiCompanyContact,
   ApiCompanyDetail,
   ApiCompanyExtraDetails,
+  ApiCompanyFull,
   ApiCompanyListItem,
   ApiEvent,
+  ApiEventFull,
   ApiEventRelease,
   ApiPressRelease,
 } from './types'
@@ -178,6 +187,22 @@ export function fetchCompanyDetails(
 }
 
 /**
+ * `GET /api/Companies/{id}/full` — the whole company in ONE request.
+ *
+ * Supersedes calling `fetchCompany` + `fetchCompanyDetails` +
+ * `fetchCompanyContacts` and merging the three, and additionally carries the
+ * annual-report and extended-boilerplate fields that used to be reachable only
+ * through the LIST projection. Takes no paging parameters: the contacts come
+ * back whole rather than as a page.
+ */
+export function fetchCompanyFull(
+  id: number,
+  signal?: AbortSignal
+): Promise<ApiCompanyFull> {
+  return apiGet<ApiCompanyFull>(`/api/Companies/${id}/full`, undefined, signal)
+}
+
+/**
  * `GET /api/CompContacts`
  *
  * Richer than the `contacts` embedded in `fetchCompany` — this is the only
@@ -213,6 +238,60 @@ export function fetchEvents(
  */
 export function fetchEvent(id: number, signal?: AbortSignal): Promise<ApiEvent> {
   return apiGet<ApiEvent>(`/api/Events/${id}`, undefined, signal)
+}
+
+/**
+ * `GET /api/Events/full`
+ *
+ * The reconciled event shape. Three things to know before using it:
+ *
+ *  1. PUBLISHED-ONLY. 816 rows, not 839 — the 23 events the wire marks
+ *     unpublished are absent, and this is an admin panel, so `loadAllEvents`
+ *     still sweeps the legacy route to keep them visible and editable.
+ *  2. `PageSize` is NOT capped at 100 the way `Size` is on /api/Companies;
+ *     2000 returns the whole set in one request, at 286KB against the legacy
+ *     sweep's 2.65MB for the same data.
+ *  3. Capitalised paging parameters, unlike the legacy /api/Events.
+ *
+ * `Upcoming`, `From` and `To` are server-side filters with no legacy
+ * equivalent — all verified answering correctly.
+ */
+export function fetchEventsFull(
+  params: {
+    pageNumber?: number
+    pageSize?: number
+    upcoming?: boolean
+    /** `YYYY-MM-DD`. Filters on the event's start date. */
+    from?: string
+    to?: string
+  } = {},
+  signal?: AbortSignal
+): Promise<ApiEventFull[]> {
+  return apiGet<ApiEventFull[]>(
+    '/api/Events/full',
+    {
+      PageNumber: params.pageNumber,
+      PageSize: params.pageSize,
+      Upcoming: params.upcoming,
+      From: params.from,
+      To: params.to,
+    },
+    signal
+  )
+}
+
+/**
+ * `GET /api/Events/{id}/full` — a working single-event read, at last.
+ *
+ * This is the route that fixes AE-M5. Note the fix landed HERE and not on
+ * `/api/Events/{id}`, which still answers 500 with the same
+ * "required column 'Companies' was not present" error it has since 2026-09-07.
+ *
+ * 404s for an unpublished id as well as an unknown one, since /full is a
+ * published-only projection.
+ */
+export function fetchEventFull(id: number, signal?: AbortSignal): Promise<ApiEventFull> {
+  return apiGet<ApiEventFull>(`/api/Events/${id}/full`, undefined, signal)
 }
 
 /**

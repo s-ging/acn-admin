@@ -232,6 +232,16 @@ export interface ApiPressRelease {
   summary: string | null
   sourceId: number | null
   sourceName: string | null
+  /**
+   * "EN" | "ZH-TW" on the records sampled — the same tag set as
+   * `ApiArticleListItem.language`, resolved through LANGUAGE_BY_API_TAG.
+   *
+   * This endpoint DOES return it (AP-M3). It was previously undeclared, and
+   * `mapPressRelease` took the value from the cached list row instead, so a
+   * cold-cache open lost it. Optional because it was only confirmed on the
+   * records probed on 2026-09-10, not across the whole corpus.
+   */
+  language?: string | null
   hasImage: boolean
   hasFile: boolean
   companies: ApiArticleCompany[]
@@ -287,4 +297,154 @@ export interface ApiEvent {
    * entries on one event. `mapEvent` collapses them.
    */
   companies: ApiArticleCompany[]
+}
+
+// ── The /full projections ───────────────────────────────────────────────────
+//
+// Added by the API team on top of the existing routes rather than in place of
+// them, so both shapes are live and both are modelled here. The /full routes
+// are the reconciled shapes from ../../../../contracts/*.after.json: renamed
+// fields, real timezone offsets, absolute URLs, booleans instead of "y", and
+// the sub-lists deduped and merged server-side.
+
+/** An organiser on a `/full` event. Deduped upstream; URLs absolute. */
+export interface ApiEventOrganiser {
+  id: number
+  name: string | null
+  /** Absolute. The legacy shape sent a bare filename in `logoFileName`. */
+  logo: string | null
+  url: string | null
+}
+
+/**
+ * A row of `GET /api/Events/full`, and the body of `GET /api/Events/{id}/full`.
+ *
+ * Differences from `ApiEvent` that will bite if assumed away:
+ *   · `name` carries what `description` used to.
+ *   · dates carry a real `+08:00` offset, and `endDate` is 23:59:59 of its day.
+ *   · `url` and `photo` are absolute.
+ *   · `publish: "y"` became `isPublished: true`.
+ *   · `compId`/`companies[]` became `organiserId`/`organisers[]`, deduped.
+ *   · `lid`, `inUrl` and `pressReleaseUrl` are gone — none held information.
+ *
+ * PUBLISHED-ONLY. The 23 events the wire marks unpublished are absent from the
+ * list and 404 on the detail route, which is why `loadAllEvents` still sweeps
+ * the legacy endpoint alongside this one.
+ */
+export interface ApiEventFull {
+  id: number
+  name: string | null
+  startDate: string | null
+  endDate: string | null
+  location: string | null
+  url: string | null
+  photo: string | null
+  isPublished: boolean
+  organiserId: number | null
+  organisers: ApiEventOrganiser[] | null
+}
+
+/** A contact on a `/full` company — the rich shape, without the extra call. */
+export interface ApiCompanyFullContact {
+  id: number
+  name: string | null
+  position: string | null
+  phone: string | null
+  email: string | null
+  fax: string | null
+  description: string | null
+  /** "HTML" / "TEXT". */
+  format: string | null
+  type: string | null
+}
+
+/**
+ * An RSS feed row.
+ *
+ * The shape was an open question for as long as `rss` came back empty on every
+ * company sampled. Company 574 populates it: `{ compId, id, rssName }`. There
+ * is no URL, sector or status on the wire — only the feed's name.
+ */
+export interface ApiCompanyRss {
+  compId: number
+  id: number
+  rssName: string | null
+}
+
+/** The annual report, promoted out of the list projection's flat fields. */
+export interface ApiCompanyAnnualReport {
+  name: string | null
+  date: string | null
+  size: string | null
+}
+
+/**
+ * `GET /api/Companies/{id}/full` — the whole company in one request.
+ *
+ * Replaces the three-call merge of `/api/Companies/{id}`, `/details` and
+ * `/api/CompContacts`, and folds in the annual-report and extended-boilerplate
+ * fields that previously only the LIST projection carried. `sectors`, `tickers`
+ * and `bloombergCodes` are byte-identical to their detail-route counterparts,
+ * so the existing row mappers take them unchanged.
+ *
+ * `username` and `password` are absent. They used to come back in plaintext on
+ * this unauthenticated endpoint (AC-M2); the backend now strips them from every
+ * company DTO. Nothing here reads them, and nothing should start.
+ */
+export interface ApiCompanyFull {
+  companyId: number
+  names: {
+    en: string | null
+    ja: string | null
+    zhHans: string | null
+    zhHant: string | null
+    ko: string | null
+  } | null
+  url: string | null
+  urlJa: string | null
+  /** Absolute URLs, not the bare filenames the legacy routes sent. */
+  logoArticle: string | null
+  logoTop: string | null
+  boilerplate: string | null
+  boilerplateExtended: string | null
+  allowAccess: boolean
+  /** The company's own sector column — the legacy `sectorId`. */
+  primarySectorId: number | null
+  profile: {
+    established: string | null
+    /** The legacy `/details` field was spelled `listed`. */
+    listedDate: string | null
+    employees: string | null
+    dunsNumber: string | null
+    otc: string | null
+    marketId: string | null
+    /** Named, where the legacy route had positional addr1..addr4. */
+    addressStreet: string | null
+    addressDistrict: string | null
+    addressCity: string | null
+    addressCountry: string | null
+    telephone: string | null
+    facsimile: string | null
+    email: string | null
+    keyPerson1Name: string | null
+    keyPerson1Title: string | null
+    keyPerson2Name: string | null
+    keyPerson2Title: string | null
+  } | null
+  /** One object. The legacy routes spelled these `youTube` and `linkedIn`. */
+  socials: {
+    blog: string | null
+    facebook: string | null
+    twitter: string | null
+    youtube: string | null
+    linkedin: string | null
+    telegram: string | null
+  } | null
+  annualReport: ApiCompanyAnnualReport | null
+  sectors: ApiCompanySector[]
+  tickers: ApiTicker[]
+  /** Renamed from the legacy `bloomberg`. */
+  bloombergCodes: ApiBloombergCode[]
+  rss: ApiCompanyRss[]
+  contacts: ApiCompanyFullContact[]
 }

@@ -15,9 +15,20 @@ short. Measured against the dev host:
 
 | | Records | Wire size | Fetch time |
 | --- | --- | --- | --- |
-| Companies | **9,439** | 4.3 MB | ~2 s at concurrency 8 |
-| Articles | **78,874** | ~70 MB | minutes |
-| Events | **839** | 1.5 MB | ~1 s |
+| Companies | **9,606** | 4.3 MB | ~2 s at concurrency 8 |
+| Articles | **80,602** | ~70 MB | minutes |
+| Events (legacy `/api/Events`) | **839** | 2.65 MB | ~1 s, nine pages |
+| Events (`/api/Events/full`) | **816** published | 286 KB | one request |
+
+Counts re-measured 2026-09-23. **The events archive is back.** It had collapsed
+to 7 rows on 2026-09-10 with `compId: null` on every one; all 839 are served
+again, and `compId` is populated on the 108 events that have an organiser.
+
+Note the two event rows. The API team shipped the `../../contracts/`
+reconciliation as **new `/full` paths beside the old ones**, not as changes to
+them — so both shapes are live, and the legacy path keeps all its quirks,
+including repeating an event's organiser once per release it has. The same 816
+events cost 2.65 MB there and 286 KB on `/full`.
 
 That difference is why the two are handled differently:
 
@@ -30,9 +41,13 @@ That difference is why the two are handled differently:
 - **Companies paginate the display, not the fetch.** The whole set is cached, so
   its search, column filters and A–Z index cover all 9,439 — and paging costs no
   requests at all.
-- **Events are fetched in full**, like companies — and they have no choice:
-  `GET /api/Events/{id}` answers 500, so the cached list is the only way to open
-  a single event.
+- **Events are fetched in full**, like companies, and from **two sources**.
+  `/api/Events/full` is published-only — 816 rows, missing the 23 the wire marks
+  unpublished — and this is an admin panel, where those 23 are exactly the
+  records someone would come here to publish. So `/full` supplies the 816 it
+  knows and is authoritative wherever the two overlap, and the legacy sweep
+  contributes only the rows `/full` does not have. Either source may fail alone
+  without taking the list down. See `loadAllEvents`.
 
 ## Caching, and what is stored where
 
@@ -110,7 +125,8 @@ npm run validate -- --url https://your.vercel.app  # the deployment
 
 When the API is up it goes further and confirms it is really the wire on the
 other end: the `Size<=100` cap returning 400, deep pages (page 90) answering,
-events responding, and whether `GET /api/Events/{id}` is still broken.
+events responding, and whether `GET /api/Events/{id}` is still broken. (It is,
+as of 2026-09-23 — the working detail read is `GET /api/Events/{id}/full`.)
 
 ### `npm run dev:mock`
 
@@ -125,6 +141,13 @@ It reproduces the wire's quirks deliberately, including the `Size` cap, the 500
 on `GET /api/Events/{id}`, `""` and `" "` for absent strings, the organiser
 repeated up to 168 times on one event, offsetless dates, and **no CORS headers**
 — so going straight at it from a browser fails exactly as the real one does.
+
+It serves the `/full` routes too, derived from the same fixtures so both shapes
+describe the same records: `/api/Events/full` (published-only, deduped
+organisers, `+08:00` offsets, absolute URLs, uncapped `PageSize`),
+`/api/Events/{id}/full` (200, and 404 for an unpublished id — while
+`/api/Events/{id}` beside it still answers 500), and
+`/api/Companies/{id}/full`.
 
 `dev:mock` points the *proxy target* at the mock, not the app's base URL: the
 browser still calls `/wire`, so the proxy path stays exercised. Pointing the app
@@ -213,13 +236,13 @@ mappers are tested against what the server actually sends.
 | Surface | Source |
 | --- | --- |
 | Companies list | `GET /api/Companies`, all 9,439, cached; display paginated |
-| Company editor | `GET /api/Companies/{id}` + `/details` + `/CompContacts`, merged |
+| Company editor | `GET /api/Companies/{id}/full` — one call, was three |
 | Press releases list | `GET /api/Articles`, one page at a time, each page cached |
 | Press release editor | `GET /api/Articles/press-release/{artId}` |
 | Companies sheet | The same full 9,439 as the list |
 | Releases sheet | The first page — a sheet is a bulk-edit surface, not a browsing one |
-| Events list | `GET /api/Events`, all 839, cached; display paginated |
-| Event detail | The cached list — there is no working detail endpoint |
+| Events list | `GET /api/Events/full` (816) + legacy `GET /api/Events` for the 23 unpublished, cached; display paginated |
+| Event detail | The cached set, else `GET /api/Events/{id}/full`, else the legacy sweep |
 | Event releases | `GET /api/Events/company/{compId}/year/{year}` |
 
 The remaining endpoints (`/api/Articles/homepage`, `/by-industry`, `/search`,
@@ -256,6 +279,16 @@ them changes what the site renders:
    release it has — 168 identical copies on the worst event. No event carries
    two *distinct* companies, so collapsing loses nothing.
 
+As of 2026-09-23, **`/api/Events/full` does all three upstream** — real `+08:00`
+offsets, `endDate` at 23:59:59, organisers deduped — and returns `url` and
+`photo` absolute besides. `mapEventFull` still applies each transform anyway.
+They are no-ops on well-formed input, and keeping them means a backend
+regression degrades to the old repair behaviour rather than shipping a relative
+`href` or an off-by-one-day date. The legacy `mapEvent` is unchanged and still
+does the real work for the 23 unpublished events, which only the legacy route
+serves. A unit test asserts the two mappers produce an identical record for the
+same event, because the list renders rows from both.
+
 What the shape of the data forces on the UI:
 
 - **718 of 839 events have no `compId`**, and it is the only key linking an
@@ -277,7 +310,8 @@ form, its validation and its change tracking are real and tested; `Save` reports
 the payload it *would* have posted. It is benched because there is nothing to
 call — every operation in the spec is a `GET` — and `PROPOSED_ENDPOINTS` records
 what would have to exist: `POST /api/Events`, `PUT /api/Events/{id}`,
-`DELETE /api/Events/{id}`, plus a working `GET /api/Events/{id}` for read-back.
+`DELETE /api/Events/{id}`. Read-back now exists — `GET /api/Events/{id}/full` —
+though it would not show an event still unpublished.
 
 Turning it on is `EVENTS_WRITE = true` plus a request in `submitEventDraft`. The
 flag on its own only turns a refusal into a broken request, which is why
@@ -296,7 +330,7 @@ nothing is guessed.
 | `status` | No equivalent field. A company off the wire is mapped `active`, not `draft`. |
 | `instagram` | The API has blog/facebook/twitter/youTube/linkedIn/telegram, no Instagram. |
 | `relations`, `wire_services` | No endpoint. |
-| `rss_feeds` | `/api/Companies/{id}` has an `rss` array, but it was empty for every company sampled, so the row shape is unknown. |
+| `rss_feeds` | Partly closed 2026-09-23. `/api/Companies/{id}/full` → `rss[]` is `{ compId, id, rssName }` (company 574 populates it). Only the feed's NAME is on the wire — no url, sector or status — so `mapRssFeed` fills the name and leaves the rest at the blank default. |
 | `sedol`, `cusip` | Ticker rows carry only `isin`. |
 | `delivery_settings` | Only `allow_access` has a source (`allowAccess`). |
 | `contact_type` | The API's `format` describes the email body (`"HTML"`), which is `email_format` — a different field. |
@@ -316,6 +350,59 @@ The API's article `images` array has no home in the model at all — `PressRelea
 has no image gallery, and the photos are not in `bodyHtml` either.
 `articleImageUrls` exposes them so a caller can use them without the mapper
 inventing a field.
+
+## Response-reading fixes — 2026-09-16
+
+Three mapper changes. All are about how a response is READ; no endpoint, no
+request and no model shape changed. Finding ids match `../../contracts/`.
+
+**AC-M1 — sectors now resolve by NAME, not by id.** `mapSector` matched
+`SECTORS.find(s => s.id === api.id)`, assuming the API's sector ids index
+`lib/sectors.ts`. They do not — the two id spaces are unrelated, and because
+both are dense small integers a wrong id resolved to a *real* sector instead of
+to nothing. Company 82 (Mitsubishi Heavy Industries) was coming out tagged
+**Fashion & Apparel** (id 208, actually "Engineering") and **eSports Gaming**
+(id 252, actually "EVs, Transportation"), written into `CompanyFull` and cached.
+Name-matching fixes four of its seven; the other three names are absent from
+`lib/sectors.ts` under any id, so the wire's own name and description are kept
+verbatim rather than guessed at. The wire's `id` is still stored in `sector_id`,
+because the mapping between the two taxonomies is an open question with the API
+team and keeping it means the answer can be applied without re-probing.
+`map-article.ts` already matched by name, so before this the two mappers
+disagreed with each other about the same company.
+
+`sectorFromId` — the fallback built from the company's own `sectorId` column —
+has no name to match on, so it can only go by id. It now returns **no sector**
+when the id is unresolvable, instead of a row with an empty `sector_name`.
+Company 82 sends `sectorId: 186`, which matches nothing; the old behaviour
+produced a blank-named sector the editor could neither read nor fix, and which
+was indistinguishable from a company that genuinely has none.
+
+**AC-M2 — portal credentials: FIXED UPSTREAM 2026-09-23.** `/api/Companies` and
+`/api/Companies/{id}` used to return `username` and `password` in plaintext on
+an endpoint that needs no sign-in. This app syncs all 9,606 companies, so
+mapping them wrote 9,606 plaintext credential pairs into IndexedDB, where they
+persisted across sessions. The backend now strips them — re-verified on the
+list, detail, `/details` and `/full` routes, none of which returns either field.
+`blankCompany` still leaves `portal_username`/`portal_password` null, nothing
+reads them, and nothing should start. Kept on the record because the mitigation
+(not reading them) is what protected us while the leak was live.
+
+**AP-M3 — `language` is read from the press-release response.** The comment on
+`mapPressRelease` said the detail endpoint has no language field and that the
+value had to be threaded in from a cached list row. It does return one, on every
+record sampled. The old behaviour lost the language on a cold cache — a direct
+URL open, or after IndexedDB was cleared — and fell back to English while the
+correct value sat in the response. `options.language` is kept as a fallback so
+every existing caller works unchanged; the response wins when it has an answer.
+
+Each fix has regression tests that fail if it is reverted: `map-company.test.ts`
+asserts a heavy industrial firm is not tagged Fashion & Apparel, and
+`map-article.test.ts` pins the language precedence including the cold-cache case.
+344 tests pass; `tsc -b` is clean.
+
+The same pass fixed two matching defects in `newsroom-main` — see
+`newsroom-main/docs/api-response-fixes-2026-09-16.md`.
 
 ## Decisions worth knowing about
 
@@ -338,6 +425,11 @@ wire data with blanks.
 uses the script-based `ZH-HANS` / `ZH-HANT`. Those four plus `EN` and `JA` are
 every value seen across 500 sampled articles.
 
+Note the wire's tags are *region* codes and the model's are *script* codes —
+they are not the same kind of tag. `newsroom-main` independently settled on a
+third spelling (BCP-47 `zh-Hant`), and both repos' `languages.ts` describe
+themselves as the single source of truth. Any shared client has to pick one.
+
 **A company is spread over three endpoints**, each authoritative for a different
 slice, so `mergeCompanyDetail` never lets a blank from one erase a value from
 another:
@@ -345,7 +437,8 @@ another:
 - `/api/Companies/{id}` — sectors, tickers, Bloomberg codes, social links
 - `/api/Companies/{id}/details` — address (`addr1`..`addr4` are street,
   district, city, country), key people, established/employees/DUNS
-- `/api/CompContacts` — the only source for a contact's position, fax,
+- `/api/CompContacts` — superseded by `/full`, which embeds the same rows with
+  the same fields. Was the only source for a contact's position, fax,
   description and email format
 - `/api/Companies` (list) — the only source for the annual report and
   `extBoilerPlate`
@@ -378,9 +471,15 @@ Two are **unverified guesses** in the house style, marked as such in
 
 ## Server-side quirks observed
 
-- **`GET /api/Events/{id}` returns 500** for every id tried (163, 177, 155, 1),
-  including ids taken straight out of the list response. There is no working
-  detail endpoint for events at all.
+- **`GET /api/Events/{id}` still returns 500** for every id tried (163, 177,
+  155, 1), including ids taken straight out of the list response. The fix landed
+  on **`GET /api/Events/{id}/full`**, which works — the broken route was left as
+  it was rather than repaired, so do not call it.
+- **The `/full` projections are published-only.** `/api/Events/full` omits the
+  23 unpublished events and `/api/Events/{id}/full` 404s for them, which reads
+  identically to "no such event". The legacy sweep is the only place they exist.
+- **`PageSize` on `/api/Events/full` is uncapped**, unlike `Size` elsewhere —
+  2000 returns the whole set in one request.
 - **`GET /api/Articles/search` is exact-match, not substring.**
   `CompanyName=Umetal` came back empty for a company that exists. Prefer
   filtering `fetchArticles` client-side unless you have exact values.
@@ -390,7 +489,9 @@ Two are **unverified guesses** in the house style, marked as such in
 - **Paging casing is inconsistent.** `/api/Articles`, `/api/Articles/search`,
   `/api/Companies` and `/api/Companies/{id}` take `Page`/`Size`;
   `/api/Articles/by-industry`, `/by-company` and `/api/Events` take
-  `pageNumber`/`pageSize`. `Size` is capped at 100.
+  `pageNumber`/`pageSize`; `/api/Events/full` takes `PageNumber`/`PageSize`.
+  Three casings. `Size` is capped at 100; `PageSize` on `/api/Events/full` is
+  not.
 - **Field casing is inconsistent.** `companyId` on list and contact rows,
   `companyID` on the company nested in an article; `logoFilename` vs
   `logoFileName`. The mappers absorb this.

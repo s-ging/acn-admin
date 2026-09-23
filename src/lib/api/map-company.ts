@@ -18,9 +18,13 @@
 //                           lands in `exchange_listed_date` as-is.
 //   relations             — no company-relations endpoint exists.
 //   wire_services         — no endpoint.
-//   rss_feeds             — /api/Companies/{id} has an `rss` array, but it was
-//                           empty for every company sampled, so the row shape
-//                           is unknown and nothing can be mapped from it.
+//   rss_feeds             — mapped from /full's `rss` as of the /full cutover.
+//                           The row shape was an open question while every
+//                           company sampled came back with an empty array;
+//                           company 574 populates it as
+//                           `{ compId, id, rssName }`. Only the NAME is on the
+//                           wire — no url, sector or status — so those stay at
+//                           their blank-record defaults. See mapRssFeed.
 //   sedol / cusip         — the ticker rows carry only `isin`.
 //   delivery_settings     — only `allow_access` has a source (`allowAccess`).
 //
@@ -37,6 +41,8 @@ import type {
   ApiCompanyContact,
   ApiCompanyDetail,
   ApiCompanyExtraDetails,
+  ApiCompanyFull,
+  ApiCompanyFullContact,
   ApiCompanyListItem,
   ApiCompanySector,
   ApiTicker,
@@ -47,6 +53,7 @@ import type {
   CompanySector,
   CompanyWireCode,
   ExchangeListing,
+  RSSFeed,
 } from '../../types/company.types'
 
 /**
@@ -73,22 +80,56 @@ const NO_TIMESTAMP = ''
 // ── Sub-records ─────────────────────────────────────────────────────────────
 
 /**
- * A sector tag. The API's `id` indexes the same taxonomy as lib/sectors.ts, so
- * `sector_type` resolves off the master list; the API's own `name` /
- * `description` are the fallback for an id the list doesn't carry.
+ * A sector tag.
+ *
+ * Resolved by NAME against lib/sectors.ts, not by id — see AC-M1 in
+ * contracts/company.before.json.
+ *
+ * This used to read `SECTORS.find(s => s.id === api.id)`, on the assumption
+ * that the API's sector `id` indexes the same taxonomy as the master list. It
+ * does not. The two id spaces are unrelated, and because both are dense small
+ * integers a wrong id silently resolves to a real sector rather than to
+ * nothing. Measured on company 82 (Mitsubishi Heavy Industries), id-matching
+ * produced:
+ *
+ *   wire "Aerospace & Defence"    (id 211) -> Aerospace & Defence   [correct, by luck]
+ *   wire "Alternative Energy"     (id 190) -> Enterprise IT          [wrong]
+ *   wire "Construct, Engineering" (id 217) -> dropped                [no such id]
+ *   wire "Energy, Alternatives"   (id 172) -> dropped                [no such id]
+ *   wire "Engineering"            (id 208) -> Fashion & Apparel      [wrong]
+ *   wire "EVs, Transportation"    (id 252) -> eSports Gaming         [wrong]
+ *   wire "Smart Cities"           (id 253) -> Regional               [wrong]
+ *
+ * A heavy industrial defence contractor tagged Fashion & Apparel, written into
+ * CompanyFull and cached. A blank field is visibly missing; a wrong-but-real
+ * one is not.
+ *
+ * Name-matching fixes four of those seven. It cannot fix the other three: the
+ * wire's names are not in the master list under any id, so the taxonomies
+ * differ in CONTENT, not only in numbering. For those, the wire's own `name`
+ * and `description` are kept verbatim rather than guessed at or dropped —
+ * which keeps bad upstream data visible instead of silently mislabelled.
+ *
+ * map-article.ts already matched by name, so before this change the two
+ * mappers disagreed with each other about the same company.
  *
  * Note the API can return several sectors for one company. They are all kept,
  * even though the editor and `resolveSector` only read `sectors[0]` — dropping
  * them here would lose data the wire actually holds.
  */
 export function mapSector(api: ApiCompanySector): CompanySector {
-  const master = SECTORS.find(s => s.id === api.id)
+  const name = str(api.name)
+  const master = name ? SECTORS.find(s => s.sector_name === name) : undefined
   return {
     id: api.id,
     company_id: api.compId,
+    // The wire's id is retained as-is. It is the key the API knows this sector
+    // by, and the id mapping between the two taxonomies is still an open
+    // question with the API team — keeping it means the answer can be applied
+    // later without re-probing.
     sector_id: api.id,
     sector_type: master?.sector_type ?? str(api.description) ?? '',
-    sector_name: master?.sector_name ?? str(api.name) ?? '',
+    sector_name: master?.sector_name ?? name ?? '',
   }
 }
 
@@ -190,8 +231,13 @@ export function mapCompanyListItem(api: ApiCompanyListItem): CompanyFull {
     logo_top_url: companyTopLogoUrl(api.topLogoFilename),
     url: str(api.url),
     about_html: str(api.boilerPlate),
-    portal_username: str(api.username),
-    portal_password: str(api.password),
+    // DELIBERATELY NOT MAPPED — `api.username` and `api.password`. See AC-M2.
+    // The wire returns both in plaintext on an endpoint that needs no sign-in.
+    // This app syncs all 9,606 companies, so mapping them wrote 9,606 plaintext
+    // credential pairs into IndexedDB, where they persisted across sessions.
+    // `blankCompany` leaves both fields null and they stay that way.
+    // Backend must strip them from the DTO; until then, not reading them is the
+    // only part of this we control.
     annual_report_url: annualReportUrl(api.reportFilename),
     annual_report_name: str(api.reportFilename),
     annual_report_date: str(api.reportFileDate),
@@ -232,8 +278,8 @@ export function mapCompanyDetail(api: ApiCompanyDetail): CompanyFull {
     logo_top_url: companyTopLogoUrl(api.topLogoFilename),
     url: str(api.url),
     about_html: str(api.boilerPlate),
-    portal_username: str(api.username),
-    portal_password: str(api.password),
+    // DELIBERATELY NOT MAPPED — see AC-M2 on mapCompanyListItem above. The
+    // detail endpoint returns the same plaintext credentials as the list one.
     blog: str(api.blog),
     facebook: str(api.facebook),
     twitter: str(api.twitter),
@@ -261,17 +307,33 @@ export function mapCompanyDetail(api: ApiCompanyDetail): CompanyFull {
   }
 }
 
-/** The single-sector fallback, built from the company's `sectorId` column. */
+/**
+ * The single-sector fallback, built from the company's `sectorId` column.
+ *
+ * Unlike `sectors[]`, this column carries no name — only a number — so it can
+ * only ever be resolved by id, and per AC-M1 the API's sector ids do not index
+ * lib/sectors.ts. Company 82 sends `sectorId: 186`, which matches nothing in
+ * the master list (its ids run 26-263 but are a different assignment).
+ *
+ * So an unresolvable id now yields NO sector rather than a row with an empty
+ * `sector_name`, which is what this used to emit. A blank-named sector is not
+ * data; it renders as a gap the editor can neither read nor fix, and it is
+ * indistinguishable from a company that genuinely has no sector.
+ *
+ * Keep this narrow. Once the API team supplies the id mapping between the two
+ * taxonomies, translate here rather than widening the match.
+ */
 function sectorFromId(companyId: number, sectorId: number | null): CompanySector[] {
   if (!sectorId) return []
   const master = SECTORS.find(s => s.id === sectorId)
+  if (!master) return []
   return [
     {
       id: sectorId,
       company_id: companyId,
       sector_id: sectorId,
-      sector_type: master?.sector_type ?? '',
-      sector_name: master?.sector_name ?? '',
+      sector_type: master.sector_type,
+      sector_name: master.sector_name,
     },
   ]
 }
@@ -316,6 +378,154 @@ export function mapCompanyExtraDetails(api: ApiCompanyExtraDetails): Partial<Com
   }
 
   return patch
+}
+
+/**
+ * A contact from a `/full` company.
+ *
+ * Same person, plainer keys: `name`/`phone`/`email`/`fax`/`position` where the
+ * legacy `/api/CompContacts` row used `contactName`/`contactPhone`/
+ * `contactEmail`/`contactFax`/`contactPosition`, and `description` where it
+ * used `contactDesc`. The id is `id`, not `contId`. Reading the legacy
+ * spellings against this shape yields a contact list of blank rows.
+ */
+export function mapFullContact(
+  api: ApiCompanyFullContact,
+  companyId: number,
+  index = 0
+): CompanyContact {
+  return {
+    id: api.id,
+    company_id: companyId,
+    name: str(api.name) ?? '',
+    position: str(api.position),
+    email: str(api.email),
+    phone: str(api.phone),
+    fax: str(api.fax),
+    contact_type: 'freetext',
+    email_format: str(api.format)?.toUpperCase() === 'TEXT' ? 'text' : 'html',
+    notes: str(api.description),
+    sort_order: index,
+    created_at: NO_TIMESTAMP,
+    updated_at: NO_TIMESTAMP,
+  }
+}
+
+/**
+ * An RSS feed row.
+ *
+ * The wire carries a name and nothing else — no url, no sector, no status — so
+ * the rest stays at the blank-record default rather than being invented. A row
+ * with no name is not a feed and is dropped by the caller.
+ */
+function mapRssFeed(api: { id: number; compId: number; rssName: string | null }): RSSFeed {
+  return {
+    id: api.id,
+    company_id: api.compId,
+    feed_name: str(api.rssName) ?? '',
+    url: '',
+    sector_id: null,
+    sector_name: null,
+    status: 'active',
+    created_at: NO_TIMESTAMP,
+    updated_at: NO_TIMESTAMP,
+  }
+}
+
+/**
+ * A company from `GET /api/Companies/{id}/full` — the whole record, one call.
+ *
+ * This replaces `mapCompanyDetail` + `mapCompanyExtraDetails` + the
+ * `/api/CompContacts` leg + the list projection's annual-report fields, all of
+ * which `mergeCompanyDetail` used to stitch together from three responses. It
+ * is a direct map rather than a merge, so there is no "a blank from one source
+ * must not erase a value from another" problem to reason about any more.
+ *
+ * `sectors`, `tickers` and `bloombergCodes` are byte-identical to their
+ * detail-route counterparts (verified on companies 14, 82 and 574), so the
+ * existing row mappers take them unchanged and keep matching sectors by NAME.
+ *
+ * `username`/`password` are not on this shape at all — the backend strips them
+ * now. The AC-M2 note on `mapCompanyListItem` records what they used to do.
+ */
+export function mapCompanyFull(api: ApiCompanyFull): CompanyFull {
+  const name = str(api.names?.en) ?? ''
+  const base = blankCompany(api.companyId, name)
+  const profile = api.profile
+  const socials = api.socials
+  const extended = str(api.boilerplateExtended)
+  const about = str(api.boilerplate)
+
+  return {
+    ...base,
+    status: STATUS_FOR_API_RECORD,
+    name_en: name,
+    name_zh_hans: str(api.names?.zhHans),
+    name_zh_hant: str(api.names?.zhHant),
+    name_ja: str(api.names?.ja),
+    name_ko: str(api.names?.ko),
+    // Absolute on the wire; the legacy routes sent bare filenames that
+    // companyLogoUrl/companyTopLogoUrl had to resolve against the site host.
+    logo_article_url: str(api.logoArticle),
+    logo_top_url: str(api.logoTop),
+    url: str(api.url),
+    url_ja: str(api.urlJa),
+    about_html: about,
+
+    blog: str(socials?.blog),
+    facebook: str(socials?.facebook),
+    twitter: str(socials?.twitter),
+    youtube: str(socials?.youtube),
+    linkedin: str(socials?.linkedin),
+    telegram: str(socials?.telegram),
+
+    established: str(profile?.established),
+    // `listedDate` here; the legacy /details route spelled it `listed`.
+    exchange_listed_date: str(profile?.listedDate),
+    employees: str(profile?.employees),
+    duns_number: str(profile?.dunsNumber),
+    otc: str(profile?.otc),
+    market_id: str(profile?.marketId),
+    address_street: str(profile?.addressStreet),
+    address_district: str(profile?.addressDistrict),
+    address_city: str(profile?.addressCity),
+    address_country: str(profile?.addressCountry),
+    telephone: str(profile?.telephone),
+    facsimile: str(profile?.facsimile),
+    company_email: str(profile?.email),
+    key_person_1_name: str(profile?.keyPerson1Name),
+    key_person_1_title: str(profile?.keyPerson1Title),
+    key_person_2_name: str(profile?.keyPerson2Name),
+    key_person_2_title: str(profile?.keyPerson2Title),
+
+    annual_report_url: annualReportUrl(api.annualReport?.name),
+    annual_report_name: str(api.annualReport?.name),
+    annual_report_date: str(api.annualReport?.date),
+    annual_report_size: str(api.annualReport?.size),
+
+    // `primarySectorId` is the company's own sector column, the legacy
+    // `sectorId`. Same fallback rule: it is the authority only when the
+    // `sectors` list is empty, which is the common case on the dev host.
+    sectors: api.sectors?.length
+      ? api.sectors.map(mapSector)
+      : sectorFromId(api.companyId, api.primarySectorId),
+
+    exchange_listings: api.tickers?.map(mapTicker) ?? [],
+    wire_codes: api.bloombergCodes?.map(mapBloombergCode) ?? [],
+    rss_feeds: (api.rss ?? []).map(mapRssFeed).filter(feed => feed.feed_name !== ''),
+    contacts: (api.contacts ?? []).map((c, i) => mapFullContact(c, api.companyId, i)),
+
+    delivery_settings: {
+      ...base.delivery_settings,
+      allow_access: api.allowAccess,
+      // Same rule as the list projection: the extended copy only tells us the
+      // flag should be on when it actually differs from the short one.
+      show_extended_boilerplate: !!extended && extended !== about,
+    },
+
+    created_at: NO_TIMESTAMP,
+    updated_at: NO_TIMESTAMP,
+  }
 }
 
 /**

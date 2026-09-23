@@ -46,20 +46,20 @@
 
 import {
   fetchCompanies,
-  fetchCompany,
-  fetchCompanyContacts,
-  fetchCompanyDetails,
+  fetchCompanyFull,
   fetchArticles,
   fetchEventReleases,
+  fetchEventFull,
   fetchEvents,
+  fetchEventsFull,
   fetchPressRelease,
   MAX_PAGE_SIZE,
 } from './endpoints'
 import { ApiError } from './client'
 import { cacheGet, cacheKeys, cacheSet, isStale } from './cache'
-import { mapCompanyDetail, mapCompanyListItem, mergeCompanyDetail } from './map-company'
+import { mapCompanyFull, mapCompanyListItem } from './map-company'
 import { companyNamesFromRows, mapArticleListItem, mapPressRelease } from './map-article'
-import { eventYear, isPublished, mapEvent, mapEventRelease } from './map-event'
+import { eventYear, isPublished, mapEvent, mapEventFull, mapEventRelease } from './map-event'
 import {
   cacheCompany,
   isLocallyEdited as isCompanyEdited,
@@ -285,13 +285,17 @@ export async function loadAllCompanies(
 /**
  * One complete company.
  *
- * Three calls, because the API splits a company across three endpoints and each
- * is authoritative for a different slice — the main record has the sectors,
- * tickers and social links, `/details` has the address and key people, and
- * `/CompContacts` is the only source for a contact's position and fax. They run
- * together; `/details` and `/CompContacts` are allowed to fail without taking
- * the company down with them, since a company with no address still beats an
- * error page.
+ * ONE call. This used to be three — `/api/Companies/{id}` for the sectors,
+ * tickers and social links, `/details` for the address and key people, and
+ * `/api/CompContacts` because it was the only source for a contact's position
+ * and fax — run together and merged, with the two secondary calls allowed to
+ * fail so that a company with no address still beat an error page.
+ *
+ * `/api/Companies/{id}/full` returns all of it, plus the annual-report and
+ * extended-boilerplate fields that previously came only from the LIST
+ * projection and so were missing from the editor entirely unless the list had
+ * been synced first. There is no partial-failure case left to handle: the
+ * request either answers or it does not.
  *
  * A company edited locally short-circuits all of it: the local copy is what the
  * editor must open, and fetching would only risk overwriting it.
@@ -306,14 +310,7 @@ export async function loadCompanyRecord(
   }
 
   try {
-    const [detail, extraDetails, contacts] = await Promise.all([
-      fetchCompany(id, { size: MAX_PAGE_SIZE }, signal),
-      fetchCompanyDetails(id, signal).catch(() => null),
-      fetchCompanyContacts({ companyId: id }, signal).catch(() => null),
-    ])
-
-    const merged = mergeCompanyDetail(mapCompanyDetail(detail), { extraDetails, contacts })
-    return cacheCompany(merged)
+    return cacheCompany(mapCompanyFull(await fetchCompanyFull(id, signal)))
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err
     // Unreachable or unknown to the wire: a local draft is the remaining answer.
@@ -590,19 +587,29 @@ export async function loadArticleRecord(
 /**
  * Every event on the wire, plus which of them the wire marks unpublished.
  *
- * All 839, fetched in full for the same reason companies are: the set is small
- * (nine pages) and holding it means the list's search, filters and sort work
- * across everything, while the cache means coming back to it costs nothing.
+ * TWO sources, deliberately, because neither alone is both complete and clean:
  *
- * There is a second, unavoidable reason here. `GET /api/Events/{id}` answers 500
- * for every id, so the list is the *only* source for a single event too — the
- * detail page reads this same cached set rather than fetching. Without it there
- * would be no way to open one event at all.
+ *   · `GET /api/Events/full` — the reconciled shape. 816 rows in ONE request
+ *     and 286KB: real `+08:00` offsets, absolute urls and images, organisers
+ *     deduped server-side. But it is PUBLISHED-ONLY.
+ *   · `GET /api/Events` — the legacy sweep. All 839 rows across nine pages and
+ *     2.65MB, with the organiser repeated once per release it has (167 copies
+ *     on the worst row). It is the only place the 23 unpublished events exist.
  *
- * `unpublishedIds` rides along rather than having a loader of its own. `publish`
- * is not on the published `Event` contract, so it cannot travel on the record —
- * but it comes off the same rows, and fetching it separately would mean paging
- * through all nine pages a second time for a flag we already had in hand.
+ * This is an admin panel, and the 23 unpublished events are exactly the ones
+ * someone would come here to publish. Dropping them to take the cheaper call
+ * would hide the work. So /full supplies the 816 it knows — it is authoritative
+ * wherever the two overlap — and the legacy sweep contributes only the rows
+ * /full does not have. The public site (newsroom-main) has no such constraint
+ * and reads /full alone.
+ *
+ * Either source may fail on its own. Losing /full falls back to the legacy
+ * mapping for everything; losing the sweep still lists the 816 published
+ * events, with the unpublished ones simply absent rather than the page erroring.
+ *
+ * `unpublishedIds` rides along rather than having a loader of its own.
+ * `isPublished` is not on the published `Event` contract, so it cannot travel
+ * on the record — but it comes off the same rows already in hand.
  *
  * Events carry no local-edit overlay: writing is benched (see lib/events/write.ts),
  * so there are no local events for one to apply to.
@@ -617,6 +624,16 @@ interface CachedEvents {
   events: Event[]
   unpublished: number[]
 }
+
+/**
+ * How many rows to ask /api/Events/full for.
+ *
+ * Unlike `Size` on /api/Companies, which 400s above 100, `PageSize` here is
+ * uncapped — 2000 returns the whole published set (816 at the last count) in
+ * one request. Deliberately well clear of that figure so the archive can grow
+ * without this silently truncating.
+ */
+const EVENTS_FULL_PAGE_SIZE = 2000
 
 export async function loadAllEvents(
   { force = false, staleAfter = DEFAULT_STALE_AFTER, signal }: LoadOptions = {}
@@ -643,14 +660,34 @@ export async function loadAllEvents(
   }
 
   try {
-    const rows = await pageThrough(
-      (page, size) => fetchEvents({ pageNumber: page, pageSize: size }, signal),
-      signal
-    )
-    const value: CachedEvents = {
-      events: rows.map(mapEvent),
-      unpublished: rows.filter(row => !isPublished(row)).map(row => row.id),
+    // Both in flight together; each is allowed to fail without the other.
+    // `PageSize` is not capped on /full, so 2000 clears the 816 rows in one go.
+    const [fullRows, legacyRows] = await Promise.all([
+      fetchEventsFull({ pageNumber: 1, pageSize: EVENTS_FULL_PAGE_SIZE }, signal).catch(
+        () => null
+      ),
+      pageThrough(
+        (page, size) => fetchEvents({ pageNumber: page, pageSize: size }, signal),
+        signal
+      ).catch(() => null),
+    ])
+
+    // Nothing answered at all - fall through to the cache, as before.
+    if (!fullRows && !legacyRows) throw new ApiError(0, '', 'Both event endpoints failed')
+
+    const events: Event[] = (fullRows ?? []).map(mapEventFull)
+    const fromFull = new Set(events.map(event => event.id))
+
+    // The legacy sweep contributes ONLY what /full does not have. When /full
+    // itself is missing, that is every row, and this degrades to the old
+    // behaviour rather than to an empty list.
+    const unpublished: number[] = []
+    for (const row of legacyRows ?? []) {
+      if (!isPublished(row)) unpublished.push(row.id)
+      if (!fromFull.has(row.id)) events.push(mapEvent(row))
     }
+
+    const value: CachedEvents = { events, unpublished }
     await cacheSet(cacheKeys.allEvents, value)
     return assemble(value, 'network', Date.now())
   } catch (err) {
@@ -670,16 +707,42 @@ export async function loadAllEvents(
 }
 
 /**
- * One event, out of the cached set.
+ * One event.
  *
- * Not a fetch, because there is no endpoint to fetch from — `/api/Events/{id}`
- * is broken server-side. This goes through `loadAllEvents` so opening an event
- * by URL works on a cold start, and costs nothing once the set is cached.
+ * There IS a detail endpoint now: `GET /api/Events/{id}/full`. Note the fix
+ * landed there and not on `/api/Events/{id}`, which still answers the same 500
+ * it has since 2026-09-07 — so this reads the /full route, never that one.
+ *
+ * Three steps, cheapest first:
+ *
+ *  1. A fresh cached set already holds every event, published or not. Opening
+ *     one from it costs nothing, so no request is made at all.
+ *  2. Cold start: the /full detail route is one small request, against the
+ *     nine-page sweep `loadAllEvents` would otherwise have to run just to read
+ *     a single row.
+ *  3. A 404 from step 2 is not necessarily a missing event — /full is
+ *     published-only, so the 23 unpublished ones answer 404 there and exist
+ *     only in the legacy sweep. Falling through to `loadAllEvents` is what
+ *     keeps them openable by URL.
  */
 export async function loadEventRecord(
   id: number,
   options: LoadOptions = {}
 ): Promise<Event | null> {
+  const { force = false, staleAfter = DEFAULT_STALE_AFTER, signal } = options
+
+  const cached = force ? null : await cacheGet<CachedEvents>(cacheKeys.allEvents)
+  if (cached && !isStale(cached, staleAfter)) {
+    return cached.value.events.find(event => event.id === id) ?? null
+  }
+
+  try {
+    return mapEventFull(await fetchEventFull(id, signal))
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err
+    // Unpublished, unknown, or the route is down. The sweep can still answer.
+  }
+
   const { records } = await loadAllEvents(options)
   return records.find(event => event.id === id) ?? null
 }

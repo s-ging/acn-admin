@@ -15,7 +15,10 @@
 // would let exactly the bugs this app had to fix pass unnoticed:
 //
 //   · `Size` is capped at 100, and a larger value is a 400.
-//   · `GET /api/Events/{id}` answers 500, as the real one does.
+//   · `GET /api/Events/{id}` answers 500, as the real one does — the working
+//     single-event read is `GET /api/Events/{id}/full`.
+//   · `GET /api/Events/full` is published-only, so the unpublished events exist
+//     ONLY on the legacy `GET /api/Events`.
 //   · Absent strings come back as "" or " " as often as null.
 //   · An event repeats its organiser once per release it has — up to 168 times.
 //   · Event dates have no timezone offset at all.
@@ -110,6 +113,151 @@ function page(total, at, pageNumber, size) {
   return Array.from({ length: count }, (_, i) => at(start + i))
 }
 
+// ── The /full projections ───────────────────────────────────────────────────
+//
+// Derived from the same fixtures as the legacy routes rather than captured
+// separately, so the two shapes describe the same events and companies and the
+// admin's two-source events loader can be exercised against them.
+//
+// The quirks reproduced here are the ones that matter to the callers:
+//
+//   · /api/Events/full is PUBLISHED-ONLY, and /api/Events/{id}/full 404s for an
+//     unpublished id as well as an unknown one. That is the whole reason the
+//     admin still sweeps the legacy route.
+//   · `PageSize` is NOT capped at 100 here, unlike `Size` on /api/Companies.
+//   · Organisers come back DEDUPED, where the legacy row repeats one up to 168
+//     times.
+//   · Dates carry a real +08:00 offset and `endDate` is 23:59:59 of its day.
+//   · `url` and `photo` are absolute.
+//   · `username`/`password` are absent, as the real wire now has them stripped.
+
+const SITE = 'https://www.acnnewswire.com'
+
+/** A bare host → absolute, matching what the real /full routes return. */
+const absolute = value => {
+  const raw = (value ?? '').trim().replace(/^\/+/, '')
+  if (!raw || !/[a-z0-9]/i.test(raw)) return null
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+}
+
+const asset = (base, filename) => {
+  const raw = (filename ?? '').trim()
+  return raw ? `${base}/${raw}` : null
+}
+
+/** A legacy date → the same calendar day with the wire's offset. */
+const fullDate = (value, endOfDay = false) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec((value ?? '').trim())
+  if (!match) return null
+  return `${match[0]}T${endOfDay ? '23:59:59' : '00:00:00'}+08:00`
+}
+
+/** A legacy event row → the reconciled /full shape. */
+function toFullEvent(event) {
+  const seen = new Set()
+  const organisers = []
+  for (const row of event.companies ?? []) {
+    if (!row || seen.has(row.companyID)) continue
+    seen.add(row.companyID)
+    const name = (row.companyName ?? '').trim()
+    if (!name) continue
+    organisers.push({
+      id: row.companyID,
+      name,
+      logo: asset(`${SITE}/images/company`, row.logoFileName),
+      url: absolute(row.companyURL),
+    })
+  }
+
+  return {
+    id: event.id,
+    name: (event.description ?? '').trim() || null,
+    startDate: fullDate(event.startDate),
+    endDate: fullDate(event.endDate, true),
+    location: (event.location ?? '').trim() || null,
+    url: absolute(event.url),
+    photo: asset(`${SITE}/eventimages`, event.eventImage),
+    isPublished: (event.publish ?? '').trim().toLowerCase() === 'y',
+    organiserId: event.compId || null,
+    organisers,
+  }
+}
+
+/** A legacy detail record → the merged /full company. */
+function toFullCompany(detail, extra) {
+  const name = detail.companyName ?? detail.companyNameEN ?? ''
+  return {
+    companyId: detail.companyId,
+    names: {
+      en: name || null,
+      ja: detail.companyNameJP || null,
+      zhHans: detail.companyNameCH || null,
+      zhHant: detail.companyNameCT || null,
+      ko: detail.companyNameKO || null,
+    },
+    url: absolute(detail.url),
+    urlJa: absolute(extra?.urlJa),
+    logoArticle: asset(`${SITE}/images/company`, detail.logoFilename),
+    logoTop: asset(`${SITE}/images/company`, detail.topLogoFilename),
+    boilerplate: detail.boilerPlate || null,
+    boilerplateExtended: detail.extBoilerPlate || null,
+    allowAccess: detail.allowAccess ?? true,
+    primarySectorId: detail.sectorId || null,
+    profile: {
+      established: extra?.established || null,
+      // `listedDate` here; the legacy /details route spelled it `listed`.
+      listedDate: extra?.listed || null,
+      employees: extra?.employees || null,
+      dunsNumber: extra?.dunsNumber || null,
+      otc: extra?.otc || null,
+      marketId: extra?.marketId || null,
+      // Named, where the legacy route had positional addr1..addr4.
+      addressStreet: extra?.addr1 || null,
+      addressDistrict: extra?.addr2 || null,
+      addressCity: extra?.addr3 || null,
+      addressCountry: extra?.addr4 || null,
+      telephone: extra?.telephone || null,
+      facsimile: extra?.facsimile || null,
+      email: extra?.email || null,
+      keyPerson1Name: extra?.pos1Name || null,
+      keyPerson1Title: extra?.pos1Desc || null,
+      keyPerson2Name: extra?.pos2Name || null,
+      keyPerson2Title: extra?.pos2Desc || null,
+    },
+    socials: {
+      blog: detail.blog ?? extra?.blog ?? null,
+      facebook: detail.facebook ?? extra?.facebook ?? null,
+      twitter: detail.twitter ?? extra?.twitter ?? null,
+      // Flat-cased here; both legacy routes used youTube / linkedIn.
+      youtube: detail.youTube ?? extra?.youTube ?? null,
+      linkedin: detail.linkedIn ?? extra?.linkedIn ?? null,
+      telegram: detail.telegram ?? extra?.telegram ?? null,
+    },
+    annualReport: {
+      name: detail.reportFilename ?? null,
+      date: detail.reportFileDate ?? null,
+      size: detail.reportFileSize ?? null,
+    },
+    sectors: detail.sectors ?? [],
+    tickers: detail.tickers ?? [],
+    // Renamed from the legacy `bloomberg`.
+    bloombergCodes: detail.bloomberg ?? [],
+    rss: detail.rss ?? [],
+    // The rich shape, which used to require a separate /api/CompContacts call.
+    contacts: (detail.contacts ?? []).map(c => ({
+      id: c.contId,
+      name: c.contactName ?? null,
+      position: c.contactPosition ?? null,
+      phone: c.contactPhone ?? null,
+      email: c.contactEmail ?? null,
+      fax: c.contactFax ?? null,
+      description: c.contactDesc ?? null,
+      format: c.format ?? 'HTML',
+      type: null,
+    })),
+  }
+}
+
 // ── Routing ─────────────────────────────────────────────────────────────────
 
 const send = (res, status, body, origin) => {
@@ -152,6 +300,26 @@ function handle(url, origin, res) {
       ? { ...structuredClone(captured), companyId: id }
       : shellCompany(id)
     return send(res, 200, detail, origin)
+  }
+
+  m = /^\/api\/Companies\/(\d+)\/full$/.exec(path)
+  if (m) {
+    const id = Number(m[1])
+    const captured = fixtures.companyDetails[id]
+    const detail = captured
+      ? { ...structuredClone(captured), companyId: id }
+      : shellCompany(id)
+    // The list projection is the only fixture carrying the annual-report and
+    // extended-boilerplate fields, which /full folds in — so they come from
+    // there rather than being invented.
+    const listRow = companyAt(id - 1)
+    return send(res, 200, toFullCompany({
+      ...detail,
+      extBoilerPlate: listRow?.extBoilerPlate ?? null,
+      reportFilename: listRow?.reportFilename ?? null,
+      reportFileDate: listRow?.reportFileDate ?? null,
+      reportFileSize: listRow?.reportFileSize ?? null,
+    }, fixtures.companyExtraDetails), origin)
   }
 
   m = /^\/api\/Companies\/(\d+)\/details$/.exec(path)
@@ -232,8 +400,40 @@ function handle(url, origin, res) {
     )
   }
 
-  // Broken upstream for every id tried, so it is broken here too — the app
-  // reads a single event out of the list because of this.
+  // The reconciled list. Published-only, and PageSize is uncapped.
+  if (path === '/api/Events/full') {
+    const { pageNumber, requested } = paging(url, ['PageNumber', 'PageSize'])
+    const all = Array.from({ length: TOTALS.events }, (_, i) => toFullEvent(eventAt(i)))
+      .filter(event => event.isPublished)
+    const upcoming = url.searchParams.get('Upcoming')
+    const from = url.searchParams.get('From')
+    const to = url.searchParams.get('To')
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = all.filter(event => {
+      const day = (event.startDate ?? '').slice(0, 10)
+      if (upcoming === 'true' && day < today) return false
+      if (from && day < from) return false
+      if (to && day > to) return false
+      return true
+    })
+    const start = (pageNumber - 1) * requested
+    return send(res, 200, rows.slice(start, start + requested), origin)
+  }
+
+  // The detail route that actually works — note the fix landed HERE and not on
+  // /api/Events/{id}, which still 500s below. 404s for an unpublished id too,
+  // since /full is a published-only projection.
+  m = /^\/api\/Events\/(\d+)\/full$/.exec(path)
+  if (m) {
+    const id = Number(m[1])
+    if (id < 1 || id > TOTALS.events) return send(res, 404, { error: 'not found' }, origin)
+    const event = toFullEvent(eventAt(id - 1))
+    if (!event.isPublished) return send(res, 404, { error: 'not found' }, origin)
+    return send(res, 200, event, origin)
+  }
+
+  // Broken upstream for every id tried, so it is broken here too. The /full
+  // route above is where the working single-event read lives.
   if (/^\/api\/Events\/\d+$/.test(path)) {
     return send(res, 500, 'Internal Server Error', origin)
   }

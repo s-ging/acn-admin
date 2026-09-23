@@ -3,6 +3,7 @@ import {
   mapBloombergCode,
   mapCompanyDetail,
   mapCompanyExtraDetails,
+  mapCompanyFull,
   mapCompanyListItem,
   mapContact,
   mapSector,
@@ -13,6 +14,7 @@ import { codeHash } from '../wire-codes'
 import type {
   ApiCompanyDetail,
   ApiCompanyExtraDetails,
+  ApiCompanyFull,
   ApiCompanyListItem,
 } from './types'
 
@@ -125,11 +127,22 @@ describe('mapCompanyListItem', () => {
     expect(mapCompanyListItem(LIST_ITEM).status).toBe('active')
   })
 
-  it('carries the portal credentials and boilerplate', () => {
+  it('carries the boilerplate', () => {
+    expect(mapCompanyListItem(LIST_ITEM).about_html).toContain('leading information website')
+  })
+
+  // AC-M2. The wire returns `username` and `password` in plaintext on an
+  // endpoint that needs no sign-in, and a full sync covers all 9,606 companies
+  // — so mapping them wrote 9,606 plaintext credential pairs to IndexedDB.
+  // LIST_ITEM below still carries them, because the API still sends them; what
+  // changed is that the mapper refuses to read them.
+  it('does not carry the portal credentials off the wire', () => {
+    expect(LIST_ITEM.username).toBe('14')
+    expect(LIST_ITEM.password).toBe('p12q34')
+
     const company = mapCompanyListItem(LIST_ITEM)
-    expect(company.portal_username).toBe('14')
-    expect(company.portal_password).toBe('p12q34')
-    expect(company.about_html).toContain('leading information website')
+    expect(company.portal_username).toBeNull()
+    expect(company.portal_password).toBeNull()
   })
 
   it('leaves the extended-boilerplate flag off when it merely repeats the short one', () => {
@@ -191,10 +204,45 @@ describe('mapSector', () => {
     expect(sector.sector_name).toBe('Exchanges & Software')
   })
 
-  it('falls back to the wire’s own strings for an id the taxonomy doesn’t carry', () => {
+  it('falls back to the wire’s own strings for a name the taxonomy doesn’t carry', () => {
     const sector = mapSector({ compId: 1, id: 999999, name: 'Something New', description: 'Uncategorised' })
     expect(sector.sector_type).toBe('Uncategorised')
     expect(sector.sector_name).toBe('Something New')
+  })
+
+  // AC-M1. These are the cases that distinguish name-matching from id-matching;
+  // every assertion below FAILS if mapSector goes back to `s.id === api.id`.
+  // Fixtures are company 82 (Mitsubishi Heavy Industries) verbatim off the wire.
+  describe('matches on name, because the wire’s sector ids are a different taxonomy', () => {
+    it('does not tag a heavy industrial firm Fashion & Apparel', () => {
+      // Master id 208 IS Fashion & Apparel. The wire sends 208 meaning Engineering.
+      const sector = mapSector({ compId: 82, id: 208, name: 'Engineering', description: 'Engineering' })
+      expect(sector.sector_name).toBe('Engineering')
+      expect(sector.sector_type).toBe('Technology')
+    })
+
+    it('does not tag it eSports Gaming', () => {
+      // Master id 252 IS eSports Gaming. The wire sends 252 meaning EVs, Transportation —
+      // a name the master list does not carry at all, so the wire's own is kept.
+      const sector = mapSector({ compId: 82, id: 252, name: 'EVs, Transportation', description: null })
+      expect(sector.sector_name).toBe('EVs, Transportation')
+    })
+
+    it('does not tag it Enterprise IT', () => {
+      // Master id 190 IS Enterprise IT; the wire sends 190 meaning Alternative Energy,
+      // which the master list holds under a different id entirely.
+      const sector = mapSector({ compId: 82, id: 190, name: 'Alternative Energy', description: 'Alt. Energy' })
+      expect(sector.sector_name).toBe('Alternative Energy')
+      expect(sector.sector_type).toBe('Sustainability')
+    })
+
+    it('keeps the wire’s id even when it resolved the name from elsewhere', () => {
+      // The id is how the API knows this sector. The mapping between the two id
+      // spaces is still an open question, so the value is retained, not discarded.
+      expect(
+        mapSector({ compId: 82, id: 190, name: 'Alternative Energy', description: 'Alt. Energy' }).sector_id
+      ).toBe(190)
+    })
   })
 })
 
@@ -337,5 +385,191 @@ describe('mergeCompanyDetail', () => {
     })
     expect(merged.employees).toBe('120')
     expect(merged.address_city).toBe('London')
+  })
+})
+
+// ── /api/Companies/{id}/full ────────────────────────────────────────────────
+//
+// Company 82 as the live wire returned it on 2026-09-23, trimmed. The one call
+// that replaced three: the sub-lists, the profile block that used to come from
+// /details, the rich contacts that used to need /api/CompContacts, and the
+// annual-report and extended-boilerplate fields that used to be reachable only
+// through the LIST projection.
+
+const COMPANY_FULL: ApiCompanyFull = {
+  companyId: 82,
+  names: {
+    en: 'Mitsubishi Heavy Industries, Ltd.',
+    ja: 'Mitsubishi Heavy Industries, Ltd.',
+    zhHans: 'Mitsubishi Heavy Industries, Ltd.',
+    zhHant: 'Mitsubishi Heavy Industries, Ltd.',
+    ko: 'Mitsubishi Heavy Industries, Ltd.',
+  },
+  url: 'https://www.mhi.com',
+  urlJa: null,
+  logoArticle: 'https://www.acnnewswire.com/images/company/MHI_new.jpg',
+  logoTop: 'https://www.acnnewswire.com/images/company/MHI_newT.jpg',
+  boilerplate: 'MHI Group is one of the leading industrial firms.',
+  boilerplateExtended: null,
+  allowAccess: true,
+  primarySectorId: 186,
+  profile: {
+    established: null, listedDate: null, employees: null, dunsNumber: null,
+    otc: null, marketId: '1',
+    addressStreet: null, addressDistrict: null, addressCity: null, addressCountry: null,
+    telephone: null, facsimile: null, email: null,
+    keyPerson1Name: null, keyPerson1Title: 'CEO',
+    keyPerson2Name: null, keyPerson2Title: 'CEO',
+  },
+  socials: {
+    blog: 'https://www.mhi.com/rss/',
+    facebook: 'https://www.facebook.com/mhi.ltd/',
+    twitter: 'https://twitter.com/MHI_Group',
+    youtube: 'https://www.youtube.com/user/DiscoverMHI',
+    linkedin: 'https://www.linkedin.com/company/mitsubishi-heavy-industries/',
+    telegram: null,
+  },
+  annualReport: { name: null, date: null, size: null },
+  sectors: [
+    { compId: 82, id: 211, name: 'Aerospace & Defence', description: 'Aerospace & Defence' },
+  ],
+  tickers: [
+    {
+      id: 456, compId: 82, exchangeId: 'XTKS', exchangeName: 'Tokyo Stock Exchange',
+      tickerId: '7011', isin: 'JP3900000005',
+    },
+  ],
+  bloombergCodes: [
+    { compId: 82, id: 73, bloombergCode: 'ASIA', name: 'Asia, Pacific Rim' },
+  ],
+  rss: [],
+  contacts: [
+    {
+      id: 774, name: 'Kengo Tatsukawa', position: 'PR', phone: '+81-3-6275-6200',
+      email: 'kengo.tatsukawa@mhi.com', fax: null, description: null,
+      format: 'HTML', type: null,
+    },
+  ],
+}
+
+describe('mapCompanyFull', () => {
+  it('reads the nested names block', () => {
+    const company = mapCompanyFull(COMPANY_FULL)
+    expect(company.name_en).toBe('Mitsubishi Heavy Industries, Ltd.')
+    expect(company.name_ja).toBe('Mitsubishi Heavy Industries, Ltd.')
+    expect(company.name_zh_hans).toBe('Mitsubishi Heavy Industries, Ltd.')
+    expect(company.name_zh_hant).toBe('Mitsubishi Heavy Industries, Ltd.')
+    expect(company.name_ko).toBe('Mitsubishi Heavy Industries, Ltd.')
+  })
+
+  it('takes the logos as absolute URLs rather than resolving filenames', () => {
+    const company = mapCompanyFull(COMPANY_FULL)
+    expect(company.logo_article_url).toBe('https://www.acnnewswire.com/images/company/MHI_new.jpg')
+    expect(company.logo_top_url).toBe('https://www.acnnewswire.com/images/company/MHI_newT.jpg')
+  })
+
+  it('reads the flat-cased socials off the nested object', () => {
+    const company = mapCompanyFull(COMPANY_FULL)
+    // youtube/linkedin here; the legacy routes spelled them youTube/linkedIn.
+    expect(company.youtube).toBe('https://www.youtube.com/user/DiscoverMHI')
+    expect(company.linkedin).toBe('https://www.linkedin.com/company/mitsubishi-heavy-industries/')
+    expect(company.telegram).toBeNull()
+  })
+
+  it('folds in the profile block that used to need /details', () => {
+    const company = mapCompanyFull(COMPANY_FULL)
+    expect(company.market_id).toBe('1')
+    expect(company.key_person_1_title).toBe('CEO')
+    // Sparse on the dev host, and mapped as null rather than an empty string.
+    expect(company.established).toBeNull()
+    expect(company.address_street).toBeNull()
+  })
+
+  it('maps the rich contacts without a second call', () => {
+    const [contact] = mapCompanyFull(COMPANY_FULL).contacts
+    expect(contact.id).toBe(774)
+    expect(contact.company_id).toBe(82)
+    expect(contact.name).toBe('Kengo Tatsukawa')
+    // position/fax/notes used to be available ONLY from /api/CompContacts.
+    expect(contact.position).toBe('PR')
+    expect(contact.email_format).toBe('html')
+  })
+
+  it('keeps matching sectors by name, not by wire id', () => {
+    const [sector] = mapCompanyFull(COMPANY_FULL).sectors
+    expect(sector.sector_name).toBe('Aerospace & Defence')
+    expect(sector.sector_type).toBe('Industrial')
+  })
+
+  it('falls back to primarySectorId only when sectors is empty', () => {
+    // 186 indexes nothing in the master list, so this yields no sector rather
+    // than a row with a blank name - see sectorFromId.
+    expect(mapCompanyFull({ ...COMPANY_FULL, sectors: [] }).sectors).toEqual([])
+  })
+
+  it('maps tickers and bloomberg codes from their renamed fields', () => {
+    const company = mapCompanyFull(COMPANY_FULL)
+    expect(company.exchange_listings).toHaveLength(1)
+    expect(company.exchange_listings[0].ticker_code).toBe('7011')
+    // bloombergCodes here; the legacy detail route called it bloomberg.
+    expect(company.wire_codes).toHaveLength(1)
+  })
+
+  it('maps rss feeds, and drops a nameless row', () => {
+    const company = mapCompanyFull({
+      ...COMPANY_FULL,
+      rss: [
+        { compId: 574, id: 1, rssName: 'Singapore Business' },
+        { compId: 574, id: 2, rssName: null },
+      ],
+    })
+    expect(company.rss_feeds).toHaveLength(1)
+    expect(company.rss_feeds[0].feed_name).toBe('Singapore Business')
+    // Only the name is on the wire; nothing else is invented.
+    expect(company.rss_feeds[0].url).toBe('')
+  })
+
+  it('flags extended boilerplate only when it differs from the short copy', () => {
+    expect(
+      mapCompanyFull(COMPANY_FULL).delivery_settings.show_extended_boilerplate
+    ).toBe(false)
+    expect(
+      mapCompanyFull({ ...COMPANY_FULL, boilerplateExtended: 'A longer version.' })
+        .delivery_settings.show_extended_boilerplate
+    ).toBe(true)
+    expect(
+      mapCompanyFull({ ...COMPANY_FULL, boilerplateExtended: COMPANY_FULL.boilerplate })
+        .delivery_settings.show_extended_boilerplate
+    ).toBe(false)
+  })
+
+  it('carries allowAccess onto delivery settings', () => {
+    expect(mapCompanyFull(COMPANY_FULL).delivery_settings.allow_access).toBe(true)
+    expect(
+      mapCompanyFull({ ...COMPANY_FULL, allowAccess: false }).delivery_settings.allow_access
+    ).toBe(false)
+  })
+
+  it('leaves the portal credentials null - the wire no longer sends them', () => {
+    // AC-M2. The legacy list and detail routes returned username/password in
+    // plaintext on an unauthenticated endpoint, and this app syncs every
+    // company, so mapping them wrote thousands of credential pairs into
+    // IndexedDB. /full omits them entirely; the model keeps the two columns
+    // because the editor renders them, and they stay at the blank default.
+    const company = mapCompanyFull(COMPANY_FULL)
+    expect(company.portal_username).toBeNull()
+    expect(company.portal_password).toBeNull()
+  })
+
+  it('survives a record with every optional block missing', () => {
+    const company = mapCompanyFull({
+      ...COMPANY_FULL,
+      names: null, profile: null, socials: null, annualReport: null,
+      sectors: [], tickers: [], bloombergCodes: [], rss: [], contacts: [],
+    })
+    expect(company.id).toBe(82)
+    expect(company.name_en).toBe('')
+    expect(company.contacts).toEqual([])
+    expect(company.rss_feeds).toEqual([])
   })
 })

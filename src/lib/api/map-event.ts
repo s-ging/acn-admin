@@ -24,7 +24,7 @@
 //               year, which is what the release feed actually uses.
 
 import { companyLogoUrl, eventImageUrl } from './media'
-import type { ApiArticleCompany, ApiEvent } from './types'
+import type { ApiArticleCompany, ApiEvent, ApiEventFull } from './types'
 import type { Event, EventCompany, EventRelease } from '../../types/event.types'
 
 /**
@@ -166,6 +166,63 @@ export function mapEvent(api: ApiEvent): Event {
     photo: eventImageUrl(api.eventImage),
     // 0 is not a company id; the wire uses it interchangeably with null.
     compId: api.compId ? api.compId : null,
+    companies,
+  }
+}
+
+/**
+ * `GET /api/Events/full` row → Event.
+ *
+ * The same app model as `mapEvent`, from the reconciled wire shape. Almost
+ * everything the legacy mapper had to repair is already done upstream:
+ *
+ *   · dates arrive with a real `+08:00` offset and an `endDate` at 23:59:59,
+ *     so `toEventIso` passes them straight through instead of stamping them.
+ *   · `url` and `photo` arrive absolute — no scheme to prefix, no host to
+ *     prepend, and no leading-slash repair.
+ *   · `organisers[]` is deduped server-side, so the 167-copy rows are gone.
+ *
+ * The transforms are still applied rather than trusted blind. They are no-ops
+ * on well-formed input and cost nothing, and it means a backend regression
+ * degrades to the legacy repair behaviour instead of shipping a relative href
+ * or an off-by-one-day date. `toAbsoluteUrl` is what would catch the latter.
+ *
+ * The app model is deliberately NOT renamed to match the wire: `name` lands on
+ * `description` and `organiserId`/`organisers` on `compId`/`companies`, so the
+ * events contract, the editor and the public site stay on one shape. Renaming
+ * it is a change that has to land here and in newsroom-main together — see
+ * contracts/event.after.json, which flags it BREAKING and DECIDE FIRST.
+ */
+export function mapEventFull(api: ApiEventFull): Event {
+  const seen = new Set<number>()
+  const companies: EventCompany[] = []
+
+  for (const row of api.organisers ?? []) {
+    if (!row || seen.has(row.id)) continue
+    seen.add(row.id)
+    const name = str(row.name)
+    if (!name) continue
+    companies.push({
+      id: row.id,
+      name,
+      // Absolute already; `toAbsoluteUrl` returns an absolute value untouched.
+      logo: toAbsoluteUrl(row.logo),
+      url: toAbsoluteUrl(row.url),
+    })
+  }
+
+  const start = toEventIso(api.startDate)
+  return {
+    id: api.id,
+    startDate: start ?? '',
+    endDate: toEventIso(api.endDate, true) ?? start ?? '',
+    description: str(api.name) ?? '',
+    location: str(api.location) ?? '',
+    url: toAbsoluteUrl(api.url) ?? '',
+    pressReleaseUrl: null,
+    photo: toAbsoluteUrl(api.photo),
+    // 0 is not a company id; the wire uses it interchangeably with null.
+    compId: api.organiserId ? api.organiserId : null,
     companies,
   }
 }
