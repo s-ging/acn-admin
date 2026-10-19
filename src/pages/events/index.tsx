@@ -11,7 +11,6 @@ import { SectionNav } from '../../components/ui/SectionNav'
 import { initialOf } from '../../lib/list/alphabet'
 import { filterOptions, passesFilter } from '../../lib/list/filters'
 import { useAllEvents, useRefreshRecords } from '../../hooks/useRecords'
-import { EVENTS_WRITE } from '../../lib/events/write'
 import { formatEventDates, eventStatus } from '../../lib/events/format'
 import type { Event } from '../../types/event.types'
 
@@ -177,10 +176,7 @@ export default function EventsListPage() {
       <Topbar
         breadcrumb={<SectionNav current="events" />}
         actions={
-          // Creating an event needs a POST that does not exist. The button is
-          // shown disabled rather than hidden, so the gap is visible and the
-          // page doesn't silently look finished.
-          <Button variant="primary" size="sm" disabled={!EVENTS_WRITE} title="The API has no write endpoint for events">
+          <Button variant="primary" size="sm" onClick={() => navigate('/events/new')}>
             + New event
           </Button>
         }

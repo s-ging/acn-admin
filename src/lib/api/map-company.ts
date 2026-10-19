@@ -28,8 +28,8 @@
 //   sedol / cusip         — the ticker rows carry only `isin`.
 //   delivery_settings     — only `allow_access` has a source (`allowAccess`).
 //
-// Writing is not part of this: every operation in the spec is a GET, so there
-// is no reverse mapper. Edits stay in localStorage.
+// The reverse mapping — CompanyFull back to the wire's write DTOs — is in
+// ./write.ts.
 
 import { blankCompany } from '../companies/blank'
 import { SECTORS } from '../sectors'

@@ -110,9 +110,12 @@ export async function cacheGet<T>(key: string): Promise<CacheEntry<T> | null> {
   return { value: stored.value as T, savedAt: stored.savedAt }
 }
 
-/** Writes `value` under `key`. Resolves either way — a failed cache write is not an error. */
-export async function cacheSet<T>(key: string, value: T): Promise<void> {
-  const entry: StoredEntry = { key, version: CACHE_VERSION, value, savedAt: Date.now() }
+/**
+ * Writes `value` under `key`. Resolves either way — a failed cache write is not
+ * an error. `savedAt` is for patching an entry without making it look fresher.
+ */
+export async function cacheSet<T>(key: string, value: T, savedAt = Date.now()): Promise<void> {
+  const entry: StoredEntry = { key, version: CACHE_VERSION, value, savedAt }
   await transact('readwrite', store => store.put(entry) as IDBRequest<IDBValidKey>)
 }
 

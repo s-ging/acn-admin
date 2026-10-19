@@ -169,18 +169,31 @@ export interface CompanyFull extends Company {
 export type ChangeType = 'edit' | 'add' | 'remove'
 export type ChangeSection = 'basic-info' | 'contacts' | 'distribution' | 'identifiers' | 'company-details'
 
-export interface FieldChange {
-  type: 'edit'
+/**
+ * Where a change goes on commit: to the API, or nowhere but the local draft
+ * because the API has no endpoint that stores it. See lib/companies/diff.ts.
+ */
+export type ChangeSync = 'api' | 'local'
+
+interface ChangeBase {
+  /** Stable identity of what changed — the same thing diffs to the same key. */
+  key: string
   section: ChangeSection
+  sync: ChangeSync
+  /** Why a `local` change can't be sent. */
+  reason?: string
+}
+
+export interface FieldChange extends ChangeBase {
+  type: 'edit'
   field: string
   label: string
   old_value: unknown
   new_value: unknown
 }
 
-export interface RecordChange {
+export interface RecordChange extends ChangeBase {
   type: 'add' | 'remove'
-  section: ChangeSection
   entity: string
   label: string
   detail: string | null

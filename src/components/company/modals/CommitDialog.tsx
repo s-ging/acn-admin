@@ -3,6 +3,8 @@ import { PencilIcon } from '../../ui/PencilIcon'
 import { CheckCircleIcon } from '../../ui/CheckCircleIcon'
 import { Button } from '../../ui/Button'
 import type { Change, ChangeSection, FieldChange, RecordChange, CompanyFull } from '../../../types/company.types'
+import type { Conflict } from '../../../lib/companies/diff'
+import type { ConflictChoice } from '../../../lib/companies/sync'
 
 export type CommitMode = 'commit' | 'discard'
 
@@ -12,8 +14,13 @@ export interface CommitDialogProps {
   changes: Change[]
   ready: boolean
   reverted?: boolean
+  /** A commit is in flight. */
+  committing?: boolean
+  /** Set when the API changed the same things since this draft was started. */
+  conflicts?: Conflict[] | null
   onClose: () => void
   onCommit: () => void
+  onResolve?: (choice: ConflictChoice) => void
   onDiscard: () => void
 }
 
@@ -43,13 +50,19 @@ const FILE_FIELDS = new Set([
   'annual_report_size',
 ])
 
+/** Marks a change the API has no endpoint for — it stays in the local draft. */
+const LocalTag = ({ change }: { change: Change }) =>
+  change.sync === 'local'
+    ? <span className="commit-row__local" title={change.reason}>local only</span>
+    : null
+
 const EditRow = memo(({ change }: { change: FieldChange }) => {
   const isFileField = FILE_FIELDS.has(String(change.field))
   return (
     <div className="commit-row commit-row--edit">
       <div className="commit-row__icon"><PencilIcon /></div>
       <div className="commit-row__body">
-        <div className="label field">{change.label}</div>
+        <div className="label field">{change.label} <LocalTag change={change} /></div>
         {isFileField ? (
           <div className="commit-row__diff">
             <span className="commit-row__new">Updated</span>
@@ -75,7 +88,7 @@ const RecordRow = memo(({ change }: { change: RecordChange }) => {
         {isAdd ? '+' : '−'}
       </div>
       <div className="commit-row__body">
-        <div className="label field">{change.entity} {isAdd ? 'added' : 'removed'}</div>
+        <div className="label field">{change.entity} {isAdd ? 'added' : 'removed'} <LocalTag change={change} /></div>
         <div className="hint">
           {change.label}{change.detail ? ` · ${change.detail}` : ''}
         </div>
@@ -91,8 +104,11 @@ export const CommitDialog = memo(({
   changes,
   ready,
   reverted = false,
+  committing = false,
+  conflicts = null,
   onClose,
   onCommit,
+  onResolve,
   onDiscard,
 }: CommitDialogProps) => {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -176,6 +192,44 @@ export const CommitDialog = memo(({
         </div>
       ) : !ready ? (
         <div className="commit-loading">Checking changes…</div>
+      ) : conflicts && conflicts.length > 0 ? (
+        <>
+          <div className="commit-body">
+            <div className="commit-section">
+              <div className="commit-section__header">
+                <span className="label">Changed on the newswire since you started editing</span>
+                <span className="commit-section__badge">{conflicts.length}</span>
+              </div>
+              <div className="commit-section__rows">
+                {conflicts.map(conflict => (
+                  <div key={conflict.key} className="commit-row commit-row--edit">
+                    <div className="commit-row__icon"><PencilIcon /></div>
+                    <div className="commit-row__body">
+                      <div className="label field">{conflict.label}</div>
+                      <div className="commit-row__diff">
+                        <span className="hint">Newswire:</span>
+                        <span className="commit-row__old">{formatValue(conflict.theirs)}</span>
+                        <span className="hint">Yours:</span>
+                        <span className="commit-row__new">{formatValue(conflict.mine)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="hint">Nothing has been sent. Your other changes are unaffected either way.</div>
+          </div>
+          <div className="commit-footer">
+            <div className="hint">Choose which version wins for these fields.</div>
+            <div className="commit-footer__actions">
+              <Button variant="outline" onClick={onClose} disabled={committing}>Cancel</Button>
+              <Button variant="warning" onClick={() => onResolve?.('theirs')} disabled={committing}>Keep newswire version</Button>
+              <Button variant="primary" onClick={() => onResolve?.('mine')} disabled={committing}>
+                {committing ? 'Committing…' : 'Overwrite with mine'}
+              </Button>
+            </div>
+          </div>
+        </>
       ) : isEmpty ? (
         <div className="commit-empty">
           <div className="flex flex-col gap-1 mb-4">
@@ -224,7 +278,9 @@ export const CommitDialog = memo(({
                 <>
                   {HoldButton}
                   <Button variant="warning" onClick={onClose}>Edit changes</Button>
-                  <Button variant="primary" onClick={onCommit}>Commit changes</Button>
+                  <Button variant="primary" onClick={onCommit} disabled={committing}>
+                    {committing ? 'Committing…' : 'Commit changes'}
+                  </Button>
                 </>
               )}
             </div>

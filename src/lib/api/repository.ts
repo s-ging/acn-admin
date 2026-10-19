@@ -3,13 +3,16 @@
 //
 // There are two sources and they are not interchangeable:
 //
-//   the API  — read-only (every operation in the swagger document is a GET),
-//              authoritative for anything already on the wire
-//   local    — localStorage, the only place an edit or a new record can go
+//   the API  — authoritative for anything already on the wire. Companies and
+//              events can be written to it (lib/api/write.ts, lib/events/write.ts);
+//              articles cannot.
+//   local    — localStorage, where every edit lands first, and stays when the
+//              API does not take it ("pending sync")
 //
 // So a company can be on the wire, local-only (a draft someone started here),
 // or both — and when it is both, the local copy wins if it has been edited.
-// That precedence lives in `cacheCompany` / `cacheArticle`; these functions
+// For companies the draft is a separate copy (lib/companies/storage.ts); for
+// articles the precedence lives in `cacheArticle`. These functions
 // arrange the fetching around it and fold in the local-only records, which
 // would otherwise vanish from a list as soon as the list came from the API.
 //
@@ -37,8 +40,9 @@
 // Two stores, two jobs, and the difference matters:
 //
 //   IndexedDB (./cache.ts) — what the wire said. Disposable; drop it any time.
-//   localStorage (../*/storage.ts) — edits and records created here. The ONLY
-//     copy, because the API is read-only. Never overwritten by a fetch.
+//   localStorage (../*/storage.ts) — edits and records created here. The only
+//     copy of anything not yet synced (and of every article edit). Never
+//     overwritten by a fetch while marked edited.
 //
 // A list is assembled from both: wire records, with locally edited ones
 // overlaid in place, plus locally created ones appended. See `overlayLocalEdits`
@@ -61,11 +65,12 @@ import { mapCompanyFull, mapCompanyListItem } from './map-company'
 import { companyNamesFromRows, mapArticleListItem, mapPressRelease } from './map-article'
 import { eventYear, isPublished, mapEvent, mapEventFull, mapEventRelease } from './map-event'
 import {
-  cacheCompany,
-  isLocallyEdited as isCompanyEdited,
+  loadBase,
   loadCompanies,
-  loadCompany,
+  loadDraft,
+  saveBase,
 } from '../companies/storage'
+import { normalizeCompany } from '../companies/normalize'
 import {
   cacheArticle,
   cacheArticles,
@@ -191,9 +196,9 @@ function overlayLocalEdits<T extends { id: number }>(fromApi: T[], local: T[]): 
 /**
  * How long a cached list stays good before a load will refresh it.
  *
- * An hour, because nothing in this app can change what the wire says — the API
- * is read-only — so the only thing staleness protects against is a release
- * being published elsewhere. A shorter window would buy accuracy nobody asked
+ * An hour, because this app's own writes patch the cache as they go (see
+ * `patchCachedCompany`), so the only thing staleness protects against is a
+ * change made elsewhere. A shorter window would buy accuracy nobody asked
  * for at the cost of the API calls this cache exists to avoid.
  */
 export const DEFAULT_STALE_AFTER = 60 * 60 * 1000
@@ -296,26 +301,72 @@ export async function loadAllCompanies(
  * projection and so were missing from the editor entirely unless the list had
  * been synced first. There is no partial-failure case left to handle: the
  * request either answers or it does not.
+ */
+export async function fetchCompanyBase(id: number, signal?: AbortSignal): Promise<CompanyFull> {
+  // Normalised exactly as a stored record is on read, so a fresh copy and a
+  // stored base compare equal when the wire hasn't changed — anything else
+  // would show up as phantom changes in the diff and phantom conflicts on commit.
+  return normalizeCompany(mapCompanyFull(await fetchCompanyFull(id, signal)))
+}
+
+/** What the editor opens: the API version and the draft on top of it, separately. */
+export interface CompanyRecord {
+  /** The API version. Null for a company created here and not yet committed, or when offline with nothing cached. */
+  base: CompanyFull | null
+  /** Uncommitted edits, if any. */
+  draft: CompanyFull | null
+  /** Whether `base` came from the API just now, rather than from the local copy. */
+  fresh: boolean
+}
+
+/**
+ * One company, for the editor.
  *
- * A company edited locally short-circuits all of it: the local copy is what the
- * editor must open, and fetching would only risk overwriting it.
+ * Always refreshes the base from the API when it can — the base is what the
+ * diff is measured against, so a stale one would show someone else's changes as
+ * the user's. A draft is never touched by this; it sits on top of whatever base
+ * comes back. A company created here (non-empty `created_at`) is not on the
+ * wire yet, so nothing is fetched for it.
  */
 export async function loadCompanyRecord(
   id: number,
   signal?: AbortSignal
-): Promise<CompanyFull | null> {
-  if (isCompanyEdited(id)) {
-    const local = loadCompany(id)
-    if (local) return local
-  }
+): Promise<CompanyRecord | null> {
+  const draft = loadDraft(id)
+  if (draft?.created_at) return { base: null, draft, fresh: false }
 
   try {
-    return cacheCompany(mapCompanyFull(await fetchCompanyFull(id, signal)))
+    const base = await fetchCompanyBase(id, signal)
+    saveBase(base)
+    return { base, draft, fresh: true }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err
-    // Unreachable or unknown to the wire: a local draft is the remaining answer.
-    return loadCompany(id)
+    // Unreachable: the last base we saw, with the draft on top.
+    const base = loadBase(id)
+    if (!base && !draft) return null
+    return { base, draft, fresh: false }
   }
+}
+
+/**
+ * Applies a write to the cached company list in place.
+ *
+ * The alternative is dropping the entry, which costs the next list load a full
+ * 95-page sync for the sake of one row. `syncedAt` is kept as it was: the rest
+ * of the list is no fresher than before. A missing cache is left missing.
+ *
+ * `record` null removes the row; `previousId` covers a create, where the local
+ * draft's id is replaced by the one the wire assigned.
+ */
+export async function patchCachedCompany(
+  id: number,
+  record: CompanyFull | null,
+  previousId?: number
+): Promise<void> {
+  const cached = await cacheGet<CompanyFull[]>(cacheKeys.allCompanies)
+  if (!cached) return
+  const rest = cached.value.filter(c => c.id !== id && c.id !== previousId)
+  await cacheSet(cacheKeys.allCompanies, record ? [...rest, record] : rest, cached.savedAt)
 }
 
 // ── Press releases ──────────────────────────────────────────────────────────
@@ -611,8 +662,9 @@ export async function loadArticleRecord(
  * `isPublished` is not on the published `Event` contract, so it cannot travel
  * on the record — but it comes off the same rows already in hand.
  *
- * Events carry no local-edit overlay: writing is benched (see lib/events/write.ts),
- * so there are no local events for one to apply to.
+ * Events carry no local-edit overlay in the list. An event save that did not
+ * reach the API is kept as a pending draft (lib/events/storage.ts) and reopened
+ * on the detail page; the list shows the wire's version until it syncs.
  */
 export interface EventListResult extends CachedListResult<Event> {
   /** Event ids the wire marks unpublished — 23 of 839 on the dev host. */

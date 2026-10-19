@@ -11,8 +11,8 @@
 //                 Lives in lib/api/cache.ts; the repository reads it.
 //
 // So `staleTime` here is deliberately long: the repository is already
-// cache-first, and the API is read-only, so nothing this app does can change
-// what the wire says. `retry: 1` because the repository falls back to the cache
+// cache-first, and a save patches or refreshes the caches itself (see
+// lib/companies/sync.ts and the event detail page). `retry: 1` because the repository falls back to the cache
 // on failure — a longer retry chain just delays a list that has data to show.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'

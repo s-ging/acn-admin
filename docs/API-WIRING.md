@@ -57,7 +57,7 @@ app work offline. Two stores, two jobs, and the difference matters:
 | | `lib/api/cache.ts` (IndexedDB) | `lib/*/storage.ts` (localStorage) |
 | --- | --- | --- |
 | Holds | what the wire said | edits, and records created here |
-| Disposable? | Yes — drop it any time, costs a re-fetch | **No.** The only copy, because the API is read-only |
+| Disposable? | Yes — drop it any time, costs a re-fetch | **No.** The only copy of anything not yet synced, and of every article edit |
 | Capacity | hundreds of MB | ~5 MB |
 
 The full company set is ~16.7 MB as `CompanyFull` (1,856 bytes each, measured),
@@ -200,16 +200,98 @@ Two consequences worth knowing:
 
 ## The two facts that shaped everything
 
-**1. The API is read-only.** All thirteen operations in the spec are `GET`.
-There is no `POST`/`PUT`/`PATCH`/`DELETE` for companies, articles or events, so
-there is no write path and no reverse mapper. Editing still goes to
-localStorage exactly as before.
+**1. Writes arrived late, and only for some records.** Until 2026-10 every
+operation in the spec was a `GET`. The spec now carries writes, all behind a
+Bearer JWT (`VITE_API_TOKEN`, see `.env.example`), for:
 
-That gives localStorage two jobs at once — a cache of what the wire said, and
-the only home for an edit. `cacheCompany` / `cacheArticle` keep them apart:
-they write an API record into the same keyspace the editor reads from, but never
-over a record that has been edited locally. `saveCompany` / `saveArticle` mark a
-record as edited, and from then on the wire cannot overwrite it.
+| Resource | Operations |
+| --- | --- |
+| Company | `POST /api/Companies`, `PUT` / `DELETE /api/Companies/{id}` |
+| Industries | `PUT` / `DELETE /api/Companies/{companyId}/industries/{industryId}` |
+| Listings | `POST /api/Companies/{companyId}/listings`, `PUT` / `DELETE …/listings/{mic}/{ticker}` |
+| Social links | `PUT` / `DELETE /api/Companies/{companyId}/social-links/{platform}` |
+| Events | `POST /api/Events`, `PUT` / `DELETE /api/Events/{id}` |
+
+There is still **no write for articles, contacts, Bloomberg/wire codes, RSS
+feeds, relations, wire services, delivery settings or status.** Those edits stay
+local-only.
+
+### Companies: base, draft, commit
+
+Two local copies per company, never mixed (`lib/companies/storage.ts`):
+
+| Key | Holds | Written by |
+| --- | --- | --- |
+| `acn_company_{id}` | **base** — the last version fetched from the API | fetches only |
+| `acn_company_draft_{id}` | **draft** — uncommitted edits, autosaved | the editor and the sheet |
+
+The diff is always base → draft, and there is exactly one diff engine
+(`lib/companies/diff.ts`). Every change it produces carries its display (for the
+commit dialog), a patch (to apply it to another copy), and the wire ops that send
+it — or `sync: 'local'` with a reason, when the API has no endpoint for it. The
+commit dialog, the commit and the "did it land" check all consume that one change
+set; nothing diffs twice.
+
+Commit (`lib/companies/sync.ts`):
+
+1. **fetch** the API version fresh.
+2. **conflicts** — anything both the draft and the API changed since the base,
+   differently, stops the commit. The dialog offers "Overwrite with mine" or
+   "Keep newswire version". Nothing is sent until one is chosen.
+3. **rebase** the user's changes onto the fresh copy, so changes made elsewhere
+   in the meantime are kept.
+4. **send** the API-bound changes (`lib/api/write.ts` turns ops into requests).
+5. **re-fetch** — this is the new base. "Did it land" is decided here, not by
+   which requests answered 200.
+6. **verify** — diff(new base, draft). Empty: the draft is deleted. Otherwise the
+   draft is kept as exactly the leftover — unlanded API changes plus local-only
+   ones — so the editor shows what is still outstanding and a retry resends only
+   that.
+
+A company created here has a draft and no base; its id starts at 9,000,001 so
+it can never collide with a wire id. Its first commit POSTs, re-keys the draft to
+the id the API returns, and continues from step 4.
+
+Records from the old single-key layout (an edited copy under `acn_company_{id}`,
+listed in `acn_company_edited`, or a record created here) are moved to the draft
+key on first load, so no local edit is lost.
+
+How a company maps back:
+
+- `basicInfo` / `details` carry only changed fields. A cleared field is sent as
+  `""` — on the Update DTOs null means "leave it".
+- Logos and the annual report go back as **filenames** (the last URL segment).
+  A `data:` upload preview is never sent: there is no upload endpoint.
+- `addr1..addr4` are street, district, city, country, as on read. Six social
+  links ride on `details`; **Instagram**, which has no details field, uses
+  `/social-links/instagram`.
+- **Industries are resolved by name** through `GET /api/Sectors`, whose ids are
+  the wire's (Aerospace & Defence = 211, matching `/full`). A sector picked in the
+  editor carries a `lib/sectors.ts` id, which is a different id space (AC-M1). A
+  name the wire does not have is reported, not guessed. The first sector is
+  primary.
+- **Listings are keyed by (mic, ticker)**; the read-side `exchangeId` values are
+  MICs (`XTKS`, `XHKG`, `OOTC`). Position is `sortOrder`, and the first is primary.
+- A create's response is undeclared; `createdId` accepts a bare number or
+  `{ id | companyId | compId | eventId }`. The local draft is re-keyed to the new
+  id at once, so a retry after a partial failure cannot POST a duplicate. If no
+  id comes back the commit stops and says so, rather than risk a second create.
+
+Deletes have **no** local fallback: a delete that only happened here would come
+back on the next sync, so a refused delete removes nothing.
+
+Unverified, because nothing could be written to the dev host while building
+this: the create response shape, the `platform` spelling `/social-links`
+expects, and whether the sub-resource writes show up in `/full`. The sub-resource
+`GET`s (`/industries`, `/listings`, `/social-links`) answered `[]` for every
+company probed — including company 82, whose `/full` has four tickers — so they
+appear to read a newer store than `/full`. If sub-resource writes do not show in
+`/full`, step 6 above will report every sector and listing change as unlanded and
+keep it in the draft — and since a listing create is a POST, a retry would send
+it again. That needs an answer from the API team before relying on it.
+
+Articles still use the older single-copy layout: `cacheArticle` writes an API
+record into the keyspace the editor reads from, but never over one marked edited.
 
 **2. The spec declares no response schemas.** Every 200 is a bare
 `{"description": "OK"}`. Nothing could be generated: the types in
@@ -224,7 +306,11 @@ mappers are tested against what the server actually sends.
 | `src/lib/api/repository.ts` | Load a record without caring whether it came from the API or localStorage. What the pages use. |
 | `src/lib/api/map-company.ts` | Wire company → `CompanyFull`. |
 | `src/lib/api/map-article.ts` | Wire article → `PressRelease`. |
-| `src/lib/api/endpoints.ts` | One function per swagger operation. All thirteen. |
+| `src/lib/api/endpoints.ts` | One function per swagger operation, reads and writes. |
+| `src/lib/api/write.ts` | `CompanyFull` → the write DTOs, and the push. |
+| `src/lib/companies/diff.ts` | The one company diff: base → draft, with patches and wire ops. |
+| `src/lib/companies/sync.ts` | Company commit (fetch, conflicts, send, re-fetch, verify) and delete. |
+| `src/lib/events/write.ts` | Event save/delete, with its pending-draft fallback. |
 | `src/lib/api/types.ts` | The wire shapes. |
 | `src/lib/api/cache.ts` | The IndexedDB read cache. |
 | `src/lib/api/media.ts` | Image filenames → URLs. |
@@ -242,7 +328,9 @@ mappers are tested against what the server actually sends.
 | Companies sheet | The same full 9,439 as the list |
 | Releases sheet | The first page — a sheet is a bulk-edit surface, not a browsing one |
 | Events list | `GET /api/Events/full` (816) + legacy `GET /api/Events` for the 23 unpublished, cached; display paginated |
+| Company save / delete | `PUT`/`POST`/`DELETE /api/Companies…` plus industries, listings, Instagram — see above |
 | Event detail | The cached set, else `GET /api/Events/{id}/full`, else the legacy sweep |
+| Event save / delete / create | `PUT`/`DELETE /api/Events/{id}`, `POST /api/Events` |
 | Event releases | `GET /api/Events/company/{compId}/year/{year}` |
 
 The remaining endpoints (`/api/Articles/homepage`, `/by-industry`, `/search`,
@@ -303,19 +391,22 @@ What the shape of the data forces on the UI:
   connect. What the contract actually needs is *absolute rather than relative*,
   which is still satisfied.
 
-### Writing is benched
+### Writing
 
-`lib/events/write.ts` holds a complete write path with the request removed. The
-form, its validation and its change tracking are real and tested; `Save` reports
-the payload it *would* have posted. It is benched because there is nothing to
-call — every operation in the spec is a `GET` — and `PROPOSED_ENDPOINTS` records
-what would have to exist: `POST /api/Events`, `PUT /api/Events/{id}`,
-`DELETE /api/Events/{id}`. Read-back now exists — `GET /api/Events/{id}/full` —
-though it would not show an event still unpublished.
+Live as of 2026-10-13: `POST /api/Events`, `PUT /api/Events/{id}`,
+`DELETE /api/Events/{id}`, wired in `lib/events/write.ts`. The detail page saves
+and deletes; `/events/new` creates.
 
-Turning it on is `EVENTS_WRITE = true` plus a request in `submitEventDraft`. The
-flag on its own only turns a refusal into a broken request, which is why
-`submitEventDraft` throws rather than silently no-ops if it is flipped early.
+The write DTO uses the `/full` names, not the legacy ones the old benched payload
+guessed at: `name` (not `description`), `isPublished: boolean` (not `"y"`/`" "`),
+`organiserId` (not `compId`), and date-only `YYYY-MM-DD` dates — the `+08:00` and
+`23:59:59` are read-side repairs and are never sent back.
+
+A save writes the draft to localStorage (`acn_event_draft_{id}`, or `_new`)
+before sending, and clears it only once the API accepts it. A failed send leaves
+it there; the detail page reopens it with a "restored" notice and the next Save
+retries. After a successful save the event list is force-refreshed, since an
+unpublished event only shows up through the legacy sweep.
 
 ## The blanks
 

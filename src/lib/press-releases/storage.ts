@@ -69,7 +69,7 @@ export function generateArticleId(): number {
 // ── The API overlay ─────────────────────────────────────────────────────────
 //
 // Same split as companies — see the note in lib/companies/storage.ts. The ACN
-// Newswire API is read-only, so localStorage is both the cache of what the wire
+// Newswire API has no write endpoint for articles, so localStorage is both the cache of what the wire
 // said and the only home for an edit, and `cacheArticle` is what keeps a fetch
 // from overwriting someone's work.
 

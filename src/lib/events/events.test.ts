@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest'
+/**
+ * jsdom for `submitEventDraft`, which keeps its fallback copy in localStorage.
+ *
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { eventStatus, formatEventDates, formatReleaseDate, readEventDate } from './format'
+import { loadPendingEvent } from './storage'
 import {
-  EVENTS_WRITE,
   blankEventDraft,
   changedFields,
   draftFromEvent,
@@ -171,58 +176,49 @@ describe('changedFields', () => {
 })
 
 describe('eventDraftPayload', () => {
-  it('sends the wire’s field names and conventions, not the app’s', () => {
-    const payload = eventDraftPayload(draftFromEvent(event(), true))
-    expect(payload).toMatchObject({
-      id: 163,
-      description: '3rd Asian Publishing Convention',
-      // Date-only midnight: the +08:00 is a read-side concern, and sending it
-      // back would change what is stored.
-      startDate: '2009-07-16T00:00:00',
-      endDate: '2009-07-17T00:00:00',
+  it('sends the /full field names, with date-only dates and a bare url', () => {
+    expect(eventDraftPayload(draftFromEvent(event(), true))).toEqual({
+      name: '3rd Asian Publishing Convention',
+      // The +08:00 and 23:59:59 are read-side repairs; sending them back would
+      // change what is stored.
+      startDate: '2009-07-16',
+      endDate: '2009-07-17',
+      location: 'Manila',
+      url: 'www.publishingconvention.com',
       eventImage: 'ap10.jpg',
-      compId: 714,
-      // "y"/" " is how all 839 existing rows are stored — blank, not "n".
-      publish: 'y',
-      lid: '2',
+      isPublished: true,
+      organiserId: 714,
     })
-  })
-
-  it('strips the scheme back off the url', () => {
-    const payload = eventDraftPayload(draftFromEvent(event(), true))
-    expect(payload.url).toBe('www.publishingconvention.com')
-  })
-
-  it('omits id when creating, and writes a blank publish flag', () => {
-    const payload = eventDraftPayload({ ...blankEventDraft(), description: 'X', startDate: '2026-01-01', endDate: '2026-01-01' })
-    expect('id' in payload).toBe(false)
-    expect(payload.publish).toBe(' ')
   })
 })
 
 describe('submitEventDraft', () => {
-  it('is benched, and says so rather than pretending to save', async () => {
-    // The bench is the point: writing is off because the API has no write
-    // endpoint at all, not because the form is unfinished.
-    expect(EVENTS_WRITE).toBe(false)
-    const result = await submitEventDraft(draftFromEvent(event(), true))
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toBe('benched')
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
   })
 
-  it('still returns the payload it would have sent', async () => {
-    const result = await submitEventDraft(draftFromEvent(event(), true))
-    expect(result.payload).toMatchObject({ id: 163, compId: 714 })
-  })
-
-  it('reports invalid before benched, so validation stays honest', async () => {
+  it('reports invalid without sending or storing anything', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
     const result = await submitEventDraft(blankEventDraft())
     expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.reason).toBe('invalid')
-      expect(result.errors?.length).toBeGreaterThan(0)
-    }
-    // Nothing is assembled from a draft that wouldn't be accepted.
-    expect(result.payload).toBeUndefined()
+    if (!result.ok) expect(result.reason).toBe('invalid')
+    expect(fetch).not.toHaveBeenCalled()
+    expect(loadPendingEvent(null)).toBeNull()
+  })
+
+  it('keeps the draft locally when the API cannot be reached, and clears it once a send succeeds', async () => {
+    const draft = { ...draftFromEvent(event(), true), location: 'Singapore' }
+
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+    const failed = await submitEventDraft(draft)
+    expect(failed.ok).toBe(false)
+    if (!failed.ok) expect(failed.reason).toBe('local')
+    expect(loadPendingEvent(163)).toEqual(draft)
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })))
+    expect(await submitEventDraft(draft)).toEqual({ ok: true, id: 163 })
+    expect(loadPendingEvent(163)).toBeNull()
   })
 })

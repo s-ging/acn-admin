@@ -1,10 +1,14 @@
 // src/pages/events/EventDetailPage.tsx
-// One event: its details, and the releases filed against it.
+// One event: its details, and the releases filed against it. Also the create
+// form, at /events/new.
 //
 // The event comes out of the cached list rather than from an endpoint, because
 // `GET /api/Events/{id}` answers 500 for every id. That is invisible here by
 // design — `useEventRecord` handles it — but it is why opening an event by URL
 // on a cold start waits for the whole set.
+//
+// Saving is local-first (see lib/events/write.ts): a draft the API did not
+// accept stays in localStorage and is reopened here until a save goes through.
 
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -12,14 +16,15 @@ import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
 import { Field } from '../../components/ui/Field'
 import { SectionNav } from '../../components/ui/SectionNav'
-import { useEventRecord, useEventReleases } from '../../hooks/useRecords'
+import { useEventRecord, useEventReleases, useRefreshRecords } from '../../hooks/useRecords'
+import { useToastStore } from '../../store/toast.store'
 import { formatEventDates, formatReleaseDate, eventStatus } from '../../lib/events/format'
+import { clearPendingEvent, loadPendingEvent } from '../../lib/events/storage'
 import {
-  EVENTS_WRITE,
   blankEventDraft,
   changedFields,
+  deleteEventRecord,
   draftFromEvent,
-  eventDraftPayload,
   submitEventDraft,
   validateEventDraft,
   type EventDraft,
@@ -28,38 +33,73 @@ import {
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const refresh = useRefreshRecords()
+  const addToast = useToastStore(s => s.addToast)
+  const isNew = id === 'new'
   const numericId = id && /^\d+$/.test(id) ? parseInt(id, 10) : null
 
-  const { event, isLoading, notFound } = useEventRecord(numericId)
+  const { event, data, isLoading, notFound } = useEventRecord(numericId)
   const { data: releases, isLoading: releasesLoading } = useEventReleases(event)
+  const published = numericId === null || !data?.unpublishedIds.has(numericId)
 
-  // The draft the form edits. Seeded from the record once it arrives; `key` on
-  // the form remounts it if the event changes underneath.
+  // What the wire holds. The form edits a draft on top of it; `key` on the form
+  // remounts it if the event changes underneath.
   const initial = useMemo<EventDraft>(
-    () => (event ? draftFromEvent(event, true) : blankEventDraft()),
-    [event]
+    () => (event ? draftFromEvent(event, published) : blankEventDraft()),
+    [event, published]
   )
-  const [draft, setDraft] = useState<EventDraft | null>(null)
+  // A draft left over from a save the API did not accept, if there is one.
+  const [draft, setDraft] = useState<EventDraft | null>(() => loadPendingEvent(isNew ? null : numericId))
+  const [restored] = useState(draft !== null)
   const current = draft ?? initial
   const set = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) =>
     setDraft({ ...current, [key]: value })
 
-  const [attempt, setAttempt] = useState<string | null>(null)
+  const [busy, setBusy] = useState<'saving' | 'deleting' | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const errors = validateEventDraft(current)
   const changed = changedFields(initial, current)
 
-  /**
-   * The save that doesn't happen.
-   *
-   * Wired to the real submit so validation and payload assembly are genuinely
-   * exercised — it reports what it *would* send. See lib/events/write.ts.
-   */
-  const attemptSave = async () => {
+  const save = async () => {
+    setBusy('saving')
+    setNotice(null)
     const result = await submitEventDraft(current)
-    setAttempt(result.ok ? 'Saved.' : result.message)
+    if (result.ok) {
+      // Re-read before dropping the draft, so the form doesn't flash the old values.
+      await refresh('events')
+      setDraft(null)
+      addToast('Saved to the newswire.', 'success')
+      if (isNew) navigate(result.id !== null ? `/events/${result.id}` : '/events', { replace: true })
+    } else if (result.reason === 'local') {
+      addToast(result.message, 'warning', 8000)
+    } else {
+      setNotice(result.message)
+    }
+    setBusy(null)
   }
 
-  if (isLoading) {
+  const remove = async () => {
+    if (numericId === null) return
+    if (!window.confirm(`Delete "${current.description || `#${numericId}`}"? This removes it from the newswire and cannot be undone.`)) return
+    setBusy('deleting')
+    try {
+      await deleteEventRecord(numericId)
+      await refresh('events')
+      addToast('Event deleted.', 'success')
+      navigate('/events')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error', 6000)
+      setBusy(null)
+    }
+  }
+
+  const discard = () => {
+    clearPendingEvent(isNew ? null : numericId)
+    setDraft(null)
+    setNotice(null)
+  }
+
+  if (isLoading && !isNew) {
     return (
       <div className="companies-page">
         <div className="companies-empty"><span>Loading event…</span></div>
@@ -67,7 +107,7 @@ export default function EventDetailPage() {
     )
   }
 
-  if (numericId === null || notFound || !event) {
+  if (!isNew && (numericId === null || notFound || !event)) {
     return (
       <div className="companies-page">
         <Topbar
@@ -81,14 +121,17 @@ export default function EventDetailPage() {
     )
   }
 
-  const status = eventStatus(event)
-  const organiser = event.companies[0]
+  const status = event ? eventStatus(event) : null
+  const organiser = event?.companies[0]
 
   return (
     <div className="companies-page">
       <Topbar
         breadcrumb={
-          <SectionNav current="events" trail={event.description || `#${event.id}`} />
+          <SectionNav
+            current="events"
+            trail={isNew ? 'New event' : event?.description || `#${event?.id}`}
+          />
         }
         actions={
           <>
@@ -97,61 +140,63 @@ export default function EventDetailPage() {
                 {changed.length} unsaved change{changed.length === 1 ? '' : 's'}
               </span>
             )}
+            {!isNew && (
+              <Button variant="danger" size="sm" onClick={remove} disabled={busy !== null}>
+                {busy === 'deleting' ? 'Deleting…' : 'Delete'}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
-              disabled={changed.length === 0}
-              onClick={() => { setDraft(null); setAttempt(null) }}
+              disabled={changed.length === 0 || busy !== null}
+              onClick={discard}
             >
               Discard
             </Button>
             <Button
               variant="primary"
               size="sm"
-              onClick={attemptSave}
-              disabled={changed.length === 0}
-              title={EVENTS_WRITE ? undefined : 'The API has no write endpoint for events'}
+              onClick={save}
+              disabled={changed.length === 0 || busy !== null}
             >
-              Save
+              {busy === 'saving' ? 'Saving…' : 'Save'}
             </Button>
           </>
         }
       />
 
-      {/* The bench notice. Stated once, at the top, rather than as a disabled
-          tooltip on every field — the fields genuinely do work, and it is only
-          the final step that is missing. */}
-      {!EVENTS_WRITE && (
+      {restored && changed.length > 0 && (
         <div className="companies-notice companies-notice--bench">
-          <strong>Editing is benched.</strong> The form, its validation and its change
-          tracking all work, but the ACN Newswire API has no write endpoint for events —
-          every operation in the spec is a <code>GET</code>. Saving will tell you what it
-          would have sent.
+          <strong>Unsent changes restored.</strong> An earlier save could not reach the API and
+          was kept locally. Save to send it again, or Discard to drop it.
         </div>
       )}
 
       <div className="event-detail">
         <section className="event-detail__main">
-          <div className="event-detail__head">
-            {event.photo && (
-              // A raw <img>: /eventimages/ is on the public site, and 16 of 839
-              // events have no image at all.
-              <img className="event-detail__photo" src={event.photo} alt="" />
-            )}
-            <div>
-              <h1 className="event-detail__title">{event.description || 'Untitled event'}</h1>
-              <div className="event-detail__meta">
-                <span className={`badge badge--${status}`}>{status}</span>
-                <span>{formatEventDates(event)}</span>
-                {event.location && <span>· {event.location}</span>}
-              </div>
-              {event.url && (
-                <a className="event-detail__link" href={event.url} target="_blank" rel="noreferrer noopener">
-                  {event.url}
-                </a>
+          {event && (
+            <div className="event-detail__head">
+              {event.photo && (
+                // A raw <img>: /eventimages/ is on the public site, and 16 of 839
+                // events have no image at all.
+                <img className="event-detail__photo" src={event.photo} alt="" />
               )}
+              <div>
+                <h1 className="event-detail__title">{event.description || 'Untitled event'}</h1>
+                <div className="event-detail__meta">
+                  <span className={`badge badge--${status}`}>{status}</span>
+                  <span>{formatEventDates(event)}</span>
+                  {event.location && <span>· {event.location}</span>}
+                </div>
+                {event.url && (
+                  <a className="event-detail__link" href={event.url} target="_blank" rel="noreferrer noopener">
+                    {event.url}
+                  </a>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+          {isNew && <h1 className="event-detail__title">New event</h1>}
 
           <div className="event-detail__form">
             <Field
@@ -213,72 +258,74 @@ export default function EventDetailPage() {
                 hint="The only key linking an event to its releases. Blank on most events."
               />
             </div>
+            <label className="event-detail__publish">
+              <input
+                type="checkbox"
+                checked={current.publish}
+                onChange={e => set('publish', e.target.checked)}
+              />
+              {' '}Published on the site
+            </label>
           </div>
 
-          {attempt && (
-            <div className="companies-notice companies-notice--bench">
-              {attempt}
-              {!EVENTS_WRITE && (
-                <details className="event-detail__payload">
-                  <summary>What it would have sent</summary>
-                  <pre>{JSON.stringify(eventDraftPayload(current), null, 2)}</pre>
-                </details>
-              )}
-            </div>
+          {notice && (
+            <div className="companies-notice companies-notice--bench">{notice}</div>
           )}
         </section>
 
-        <aside className="event-detail__side">
-          <h2 className="event-detail__h2">Organiser</h2>
-          {organiser ? (
-            <div className="event-detail__org">
-              {organiser.logo && <img src={organiser.logo} alt="" />}
-              <div>
-                <div style={{ fontWeight: 500 }}>{organiser.name}</div>
-                <div className="hint monospace">#{organiser.id}</div>
-                {organiser.url && (
-                  <a href={organiser.url} target="_blank" rel="noreferrer noopener">{organiser.url}</a>
-                )}
+        {event && (
+          <aside className="event-detail__side">
+            <h2 className="event-detail__h2">Organiser</h2>
+            {organiser ? (
+              <div className="event-detail__org">
+                {organiser.logo && <img src={organiser.logo} alt="" />}
+                <div>
+                  <div style={{ fontWeight: 500 }}>{organiser.name}</div>
+                  <div className="hint monospace">#{organiser.id}</div>
+                  {organiser.url && (
+                    <a href={organiser.url} target="_blank" rel="noreferrer noopener">{organiser.url}</a>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <p className="hint">
-              No organiser on this event. 718 of 839 have none, and without one there is
-              no way to resolve a release feed.
-            </p>
-          )}
+            ) : (
+              <p className="hint">
+                No organiser on this event. 718 of 839 have none, and without one there is
+                no way to resolve a release feed.
+              </p>
+            )}
 
-          <h2 className="event-detail__h2">
-            Releases
-            {releases && releases.length > 0 && <span className="hint"> · {releases.length}</span>}
-          </h2>
+            <h2 className="event-detail__h2">
+              Releases
+              {releases && releases.length > 0 && <span className="hint"> · {releases.length}</span>}
+            </h2>
 
-          {event.compId === null ? (
-            <p className="hint">No organiser id, so no release feed is possible.</p>
-          ) : releasesLoading ? (
-            <p className="hint">Loading releases…</p>
-          ) : !releases || releases.length === 0 ? (
-            <p className="hint">No releases filed against this organiser for {event.startDate.slice(0, 4)}.</p>
-          ) : (
-            <ul className="event-releases">
-              {releases.map(release => (
-                <li key={release.id}>
-                  <button
-                    type="button"
-                    className="event-releases__item"
-                    onClick={() => navigate(`/article/${release.id}`)}
-                  >
-                    <span className="event-releases__headline">{release.headline}</span>
-                    <span className="hint">{formatReleaseDate(release.dateTime)}</span>
-                    {release.summary && (
-                      <span className="event-releases__summary">{release.summary}</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </aside>
+            {event.compId === null ? (
+              <p className="hint">No organiser id, so no release feed is possible.</p>
+            ) : releasesLoading ? (
+              <p className="hint">Loading releases…</p>
+            ) : !releases || releases.length === 0 ? (
+              <p className="hint">No releases filed against this organiser for {event.startDate.slice(0, 4)}.</p>
+            ) : (
+              <ul className="event-releases">
+                {releases.map(release => (
+                  <li key={release.id}>
+                    <button
+                      type="button"
+                      className="event-releases__item"
+                      onClick={() => navigate(`/article/${release.id}`)}
+                    >
+                      <span className="event-releases__headline">{release.headline}</span>
+                      <span className="hint">{formatReleaseDate(release.dateTime)}</span>
+                      {release.summary && (
+                        <span className="event-releases__summary">{release.summary}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+        )}
       </div>
     </div>
   )

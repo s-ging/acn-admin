@@ -194,7 +194,9 @@ describe('commitCells — companies', () => {
     expect(result.created).toHaveLength(1)
     const { row, id } = result.created[0]
     expect(row).toBe(FIRST_ROW + 1)
-    expect(id).toBe(1002) // next after the existing 1001
+    // Local ids start above the wire's range, so they can never collide with a
+    // real company id — 1001 is a wire id and doesn't move the counter.
+    expect(id).toBe(9_000_001)
     expect(loadCompany(id)?.name_en).toBe('Nissan')
   })
 

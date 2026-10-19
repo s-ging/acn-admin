@@ -13,8 +13,10 @@ import {
   API_UPSTREAM_URL,
   ApiError,
   apiGet,
+  apiSend,
   getApiBaseUrl,
   setApiBaseUrl,
+  setAuthToken,
 } from './client'
 
 /** Records the URL a call was addressed to, and answers with `[]`. */
@@ -111,5 +113,24 @@ describe('failures', () => {
     // otherwise be parsed as data.
     vi.stubGlobal('fetch', vi.fn(async () => new Response('<!doctype html><html>', { status: 200 })))
     await expect(apiGet('/api/Companies')).rejects.toBeInstanceOf(ApiError)
+  })
+})
+
+describe('apiSend', () => {
+  it('sends the method, a JSON body and the bearer token', async () => {
+    const fetch = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(
+      async () => new Response('', { status: 200 })
+    )
+    vi.stubGlobal('fetch', fetch)
+    setAuthToken('jwt-123')
+    try {
+      await expect(apiSend('PUT', '/api/Events/7', { name: 'X' })).resolves.toBeNull()
+    } finally {
+      setAuthToken(null)
+    }
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('/wire/api/Events/7')
+    expect(init).toMatchObject({ method: 'PUT', body: '{"name":"X"}' })
+    expect(init?.headers).toMatchObject({ 'Content-Type': 'application/json', Authorization: 'Bearer jwt-123' })
   })
 })

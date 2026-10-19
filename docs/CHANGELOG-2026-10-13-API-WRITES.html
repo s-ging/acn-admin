@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Writes Changelog</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #5f5f5a;
+    --border: #e3e2dd;
+    --accent: #2457c5;
+    --accent-soft: #e8eefb;
+    --ok: #1f7a4d;
+    --ok-soft: #e4f3ea;
+    --warn: #8a5a00;
+    --warn-soft: #fbf1dc;
+    --bad: #a1312a;
+    --bad-soft: #f9e5e3;
+    --code-bg: #f0efeb;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151514;
+      --surface: #1e1e1c;
+      --text: #ecebe6;
+      --muted: #a3a29b;
+      --border: #33322f;
+      --accent: #7ea2f0;
+      --accent-soft: #1f2a40;
+      --ok: #6fcf9a;
+      --ok-soft: #17301f;
+      --warn: #e8b85c;
+      --warn-soft: #33280f;
+      --bad: #f08a80;
+      --bad-soft: #3a1c19;
+      --code-bg: #2a2a27;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151514; --surface: #1e1e1c; --text: #ecebe6; --muted: #a3a29b; --border: #33322f;
+    --accent: #7ea2f0; --accent-soft: #1f2a40; --ok: #6fcf9a; --ok-soft: #17301f;
+    --warn: #e8b85c; --warn-soft: #33280f; --bad: #f08a80; --bad-soft: #3a1c19; --code-bg: #2a2a27;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.6 var(--sans);
+  }
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; gap: 40px; padding: 32px 24px 80px; }
+  nav.toc { position: sticky; top: 24px; align-self: start; font-size: 13.5px; }
+  nav.toc .label { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; }
+  nav.toc li { margin: 2px 0; }
+  nav.toc a { color: var(--muted); text-decoration: none; display: block; padding: 4px 10px; border-left: 2px solid var(--border); }
+  nav.toc a:hover { color: var(--text); border-left-color: var(--accent); }
+  main { min-width: 0; }
+
+  header.hero { margin-bottom: 28px; }
+  header.hero h1 { font-size: 28px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -.01em; }
+  header.hero p { margin: 0; color: var(--muted); }
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 20px 0 0; }
+  .meta div { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .meta dt { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .meta dd { margin: 2px 0 0; font-weight: 600; }
+
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin: 0 0 20px; }
+  section > h2 { font-size: 20px; margin: 0 0 14px; display: flex; align-items: baseline; gap: 10px; }
+  section > h2 .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+  p { margin: 8px 0; }
+  ul, ol { padding-left: 22px; margin: 8px 0; }
+  li { margin: 3px 0; }
+  code { font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+  a { color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; margin: 10px 0; border: 1px solid var(--border); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+
+  .callout { border-radius: 8px; padding: 12px 16px; margin: 12px 0; border: 1px solid transparent; }
+  .callout.info { background: var(--accent-soft); }
+  .callout.warn { background: var(--warn-soft); color: var(--text); }
+  .callout.ok { background: var(--ok-soft); }
+  .callout strong:first-child { display: block; margin-bottom: 2px; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li { counter-increment: step; position: relative; padding: 8px 0 8px 40px; border-bottom: 1px dashed var(--border); }
+  .steps li:last-child { border-bottom: 0; }
+  .steps li::before { content: counter(step); position: absolute; left: 0; top: 8px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--surface); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
+  .tag.new { background: var(--ok-soft); color: var(--ok); }
+  .tag.mod { background: var(--accent-soft); color: var(--accent); }
+  .tag.del { background: var(--bad-soft); color: var(--bad); }
+  .tag.local { background: var(--warn-soft); color: var(--warn); }
+
+  .files { columns: 2; column-gap: 32px; padding-left: 0; list-style: none; }
+  .files li { break-inside: avoid; padding: 2px 0; }
+  .files .note { color: var(--muted); font-size: 13px; }
+
+  .rounds { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .rounds > div { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .rounds h4 { margin: 0 0 4px; font-size: 14px; }
+  .rounds p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 30px; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; padding: 20px 16px 60px; gap: 16px; }
+    nav.toc { position: static; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    section { padding: 18px 16px; }
+    .rounds { grid-template-columns: 1fr; }
+    .files { columns: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <div class="label">Contents</div>
+  <ol>
+    <li><a href="#api">1. What the API offers</a></li>
+    <li><a href="#missing">2. Missing write endpoints</a></li>
+    <li><a href="#architecture">3. Final architecture</a></li>
+    <li><a href="#round1">4. Round 1 — write integration</a></li>
+    <li><a href="#round2">5. Round 2 — diff rewrite</a></li>
+    <li><a href="#files">6. All files touched</a></li>
+    <li><a href="#tests">7. Tests</a></li>
+    <li><a href="#behaviour">8. Behaviour changes</a></li>
+    <li><a href="#questions">9. Open questions</a></li>
+    <li><a href="#next">10. Not done / next</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero">
+  <h1>API write integration &amp; diff engine rewrite</h1>
+  <p>Change log for the ACN Newswire admin — everything done in the session of 13 October 2026.</p>
+  <dl class="meta">
+    <div><dt>Date</dt><dd>2026-10-13</dd></div>
+    <div><dt>Branch</dt><dd><code>master</code>, uncommitted</dd></div>
+    <div><dt>Base commit</dt><dd><code>c4733a6</code></dd></div>
+    <div><dt>Checks</dt><dd>Typecheck &amp; build clean · 377 tests pass</dd></div>
+  </dl>
+  <div class="callout warn">
+    <strong>Not yet verified live</strong>
+    Nothing has been exercised in a browser or written to the real API — that needs a JWT.
+  </div>
+</header>
+
+<section>
+  <h2>Overview</h2>
+  <p>The session had two rounds of work. Round 2 replaced parts of round 1; the final state is described in <a href="#architecture">§3</a>.</p>
+  <div class="rounds">
+    <div>
+      <h4>Round 1 — wiring the write endpoints</h4>
+      <p>Companies (with industries, listings, social links) and events can now be created, updated and deleted.</p>
+    </div>
+    <div>
+      <h4>Round 2 — diff engine &amp; save model</h4>
+      <p>The diff is now <em>API version vs local draft</em>. Edits autosave locally; commit sends to the API, re-fetches, and verifies what landed.</p>
+    </div>
+  </div>
+</section>
+
+<section id="api">
+  <h2><span class="num">1</span> What the API offers now</h2>
+  <p>Checked against the live spec (<code>/swagger/v1/swagger.json</code>) on 2026-10-13. All writes require a <strong>Bearer JWT</strong>.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Resource</th><th>Operations</th></tr></thead>
+    <tbody>
+      <tr><td>Company</td><td><code>POST /api/Companies</code>, <code>PUT /api/Companies/{id}</code>, <code>DELETE /api/Companies/{id}</code></td></tr>
+      <tr><td>Company industries</td><td><code>PUT</code> / <code>DELETE /api/Companies/{companyId}/industries/{industryId}</code></td></tr>
+      <tr><td>Company listings</td><td><code>POST /api/Companies/{companyId}/listings</code>, <code>PUT</code> / <code>DELETE …/listings/{mic}/{ticker}</code></td></tr>
+      <tr><td>Company social links</td><td><code>PUT</code> / <code>DELETE /api/Companies/{companyId}/social-links/{platform}</code></td></tr>
+      <tr><td>Events</td><td><code>POST /api/Events</code>, <code>PUT /api/Events/{id}</code>, <code>DELETE /api/Events/{id}</code></td></tr>
+      <tr><td>Sectors (read)</td><td><code>GET /api/Sectors</code> — the API's own sector ids</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Findings from probing (reads only — nothing was written)</h3>
+  <ul>
+    <li><code>exchangeId</code> values are MIC codes (<code>XTKS</code>, <code>XHKG</code>, <code>OOTC</code>), so a listing's <code>mic</code> is the app's <code>exchange_id</code>.</li>
+    <li><code>/api/Sectors</code> uses the same id space as <code>/full</code> (Aerospace &amp; Defence = 211) — <em>not</em> the ids in <code>src/lib/sectors.ts</code>.</li>
+    <li><code>GET /industries</code>, <code>/listings</code> and <code>/social-links</code> returned <code>[]</code> for every company probed, including company 82, whose <code>/full</code> record has four tickers. They appear to read a different store than <code>/full</code>.</li>
+  </ul>
+</section>
+
+<section id="missing">
+  <h2><span class="num">2</span> Write endpoints that do <em>not</em> exist</h2>
+  <p>Edits to these stay in the local draft and are tagged <span class="tag local">local only</span> in the commit dialog.</p>
+  <h3>Companies</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Data</th><th>Missing</th></tr></thead>
+    <tbody>
+      <tr><td>Contacts</td><td>create / update / delete (only <code>GET /api/CompContacts</code>)</td></tr>
+      <tr><td>Bloomberg / wire codes</td><td>create / delete</td></tr>
+      <tr><td>RSS feeds</td><td>create / update / delete</td></tr>
+      <tr><td>Related companies</td><td>no endpoint at all, not even a read</td></tr>
+      <tr><td>Wire services</td><td>no endpoint at all, not even a read</td></tr>
+      <tr><td>Delivery settings</td><td>no fields (allow access, photos, banner, company will mail, extended boilerplate flag, archives, alerts, delivery method)</td></tr>
+      <tr><td>Status</td><td>no field (active / inactive / draft)</td></tr>
+      <tr><td>Languages</td><td>no field (main / secondary)</td></tr>
+      <tr><td>Portal username / password</td><td>no field</td></tr>
+      <tr><td>Listing ISIN / SEDOL / CUSIP</td><td>listing DTO takes only mic, ticker, isPrimary, sortOrder</td></tr>
+      <tr><td>Logo &amp; annual-report files</td><td>no upload endpoint — only filenames can be stored</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout info"><strong>Press releases / articles</strong>No write endpoints at all.</div>
+  <div class="callout ok"><strong>Events</strong>Complete — nothing missing.</div>
+</section>
+
+<section id="architecture">
+  <h2><span class="num">3</span> Final architecture</h2>
+
+  <h3>Companies: base, draft, commit</h3>
+  <p>Two local copies per company, never mixed (<code>src/lib/companies/storage.ts</code>):</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>localStorage key</th><th>Holds</th><th>Written by</th></tr></thead>
+    <tbody>
+      <tr><td><code>acn_company_{id}</code></td><td><strong>Base</strong> — last version fetched from the API</td><td>fetches and commit re-fetches only</td></tr>
+      <tr><td><code>acn_company_draft_{id}</code></td><td><strong>Draft</strong> — uncommitted edits</td><td>editor autosave, sheet view</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>The editor autosaves the draft on every change; the draft is deleted the moment it matches the base.</li>
+    <li>The diff is always <strong>base → draft</strong>, computed by one engine.</li>
+  </ul>
+
+  <h3>Commit flow (<code>src/lib/companies/sync.ts</code>)</h3>
+  <ol class="steps">
+    <li><strong>Fetch</strong> the API version fresh.</li>
+    <li><strong>Conflict check</strong> — fields both the draft and the API changed since the base, differently. If any, nothing is sent; the dialog asks <em>Overwrite with mine</em> or <em>Keep newswire version</em>.</li>
+    <li><strong>Rebase</strong> the user's changes onto the fresh copy, so changes made elsewhere meanwhile are kept.</li>
+    <li><strong>Send</strong> the API-bound changes.</li>
+    <li><strong>Re-fetch</strong> — this becomes the new base.</li>
+    <li><strong>Verify</strong> — diff(new base, draft). Empty → draft deleted. Otherwise the draft keeps exactly the leftover (unlanded API changes plus local-only ones), so a retry resends only that.</li>
+  </ol>
+  <ul>
+    <li><strong>New companies</strong> have a draft and no base. The first commit POSTs, re-keys the draft to the id the API returns, then continues at step 4.</li>
+    <li><strong>Delete</strong>: API <code>DELETE</code> first; local copies are removed only if it succeeds. A company never committed is deleted locally only.</li>
+  </ul>
+
+  <h3>The diff engine (<code>src/lib/companies/diff.ts</code>)</h3>
+  <ul>
+    <li><code>FIELDS</code> — every scalar field listed once, with label, section and where it goes on the wire (<code>basicInfo.*</code>, <code>details.*</code>, social links, or local + reason).</li>
+    <li><code>COLLECTIONS</code> — every list keyed by a stable identity: sectors by <strong>name</strong>, listings by <strong>(mic, ticker)</strong>, contacts / wire codes / RSS / relations / wire services by id. Sectors and listings are ordered (first = primary).</li>
+    <li>Each change carries display data for the dialog, a <strong>patch</strong> (<code>applyChanges</code> applies it to another copy — used for rebasing and for keeping only the leftover), and its <strong>wire ops</strong> or <code>sync: 'local'</code> with a reason.</li>
+    <li><code>findConflicts(mine, theirs)</code> compares two change sets by key.</li>
+    <li><code>""</code> and <code>null</code> are equal; a cleared field is sent as <code>""</code> (null on the update DTOs means "leave it").</li>
+    <li>Logos and the annual report are sent as filenames; <code>data:</code> upload previews are local-only.</li>
+    <li>A test asserts every <code>CompanyFull</code> field is covered by <code>FIELDS</code>, <code>COLLECTIONS</code> or <code>IGNORED_FIELDS</code>, so a new field cannot be silently skipped.</li>
+  </ul>
+
+  <h3>Requests (<code>src/lib/api/write.ts</code>)</h3>
+  <p>No diffing — only ops → HTTP:</p>
+  <ul>
+    <li><code>basicInfo</code> / <code>details</code> ops are merged into one <code>PUT /api/Companies/{id}</code>.</li>
+    <li>Industry ops resolve the industry id by <strong>name</strong> via <code>GET /api/Sectors</code> (fetched lazily, once per session).</li>
+    <li>Listing and social-link ops are one request each.</li>
+    <li><code>createFromChanges</code> POSTs a new company and throws if no id comes back, to avoid a duplicate create on retry.</li>
+  </ul>
+
+  <h3>Events</h3>
+  <ul>
+    <li><code>src/lib/events/write.ts</code>: the benched write path is live. Payload uses the real DTO names — <code>name</code>, <code>isPublished</code> (boolean), <code>organiserId</code>, date-only <code>YYYY-MM-DD</code> dates, bare URL.</li>
+    <li>Save is local-first: the draft is written to <code>acn_event_draft_{id}</code> (or <code>_new</code>) before sending and cleared on success. A failed save is restored on the detail page with a notice; the next Save retries.</li>
+    <li>Detail page: Save, Delete (with confirm), Discard, a Published checkbox, and create at <code>/events/new</code>. The list's "+ New event" button is enabled.</li>
+  </ul>
+
+  <h3>Transport</h3>
+  <ul>
+    <li><code>src/lib/api/client.ts</code>: new <code>apiSend(method, path, body)</code> beside <code>apiGet</code> — JSON body, Bearer header, <code>ApiError</code>, empty write body → <code>null</code>.</li>
+    <li>Token read from <code>VITE_API_TOKEN</code> until a login flow exists. Documented in <code>.env.example</code>; must not be set in a deployed build, since it ships to every browser.</li>
+  </ul>
+</section>
+
+<section id="round1">
+  <h2><span class="num">4</span> Round 1 — write integration (as first built)</h2>
+  <p>Approved scope: core writes plus sub-resources, automatic localStorage fallback, light tests.</p>
+  <ul>
+    <li><code>client.ts</code>: <code>apiSend</code>, <code>VITE_API_TOKEN</code>.</li>
+    <li><code>types.ts</code>: write DTOs — <code>CreateCompanyDto</code>, <code>UpdateCompanyDto</code>, <code>ApiCompanyBasicInfo</code>, <code>ApiCompanyDetailsWrite</code>, <code>SaveCompanyIndustryDto</code>, <code>CreateCompanyListingDto</code>, <code>UpdateCompanyListingDto</code>, <code>SaveCompanySocialLinkDto</code>, <code>SaveEventDto</code>, <code>ApiSector</code>.</li>
+    <li><code>endpoints.ts</code>: one function per write operation, <code>fetchSectors</code>, <code>createdId</code>.</li>
+    <li><code>write.ts</code> (new): company → DTO mapping with its own diff against a fresh <code>/full</code> read, sub-resource planning, push.</li>
+    <li><code>companies/sync.ts</code> (new): save to localStorage, then push; delete.</li>
+    <li><code>repository.ts</code>: <code>patchCachedCompany</code> patches the cached list in place rather than forcing a 95-page re-sync. <code>cache.ts</code>: <code>cacheSet</code> takes an optional <code>savedAt</code>.</li>
+    <li><code>CommitModal</code> / <code>CompanyEditor</code>: commit pushes to the API; Delete button added.</li>
+    <li>Events as in <a href="#architecture">§3</a>.</li>
+    <li>Mock server: accepts POST/PUT/DELETE on the write routes, logs them, returns <code>{ id }</code> on create. Not persisted.</li>
+    <li><code>API-WIRING.md</code>: "read-only" sections rewritten.</li>
+  </ul>
+  <h3>Problems found in review (led to round 2)</h3>
+  <ul>
+    <li>The store held <em>either</em> the API copy <em>or</em> the edited copy, so the true base was lost once a company was edited.</li>
+    <li>Editor edits lived only in memory until commit — a refresh lost them.</li>
+    <li>Two diffs disagreed: the dialog's <code>computeDiff</code> and the push's own diff covered different fields and keyed sectors/listings differently.</li>
+    <li>After a failed sync the editor's diff was empty, and the dialog offers no Commit button for an empty diff — a pending sync could not be retried.</li>
+    <li>Commit copied the local draft into the base instead of re-fetching what the API actually stored.</li>
+  </ul>
+</section>
+
+<section id="round2">
+  <h2><span class="num">5</span> Round 2 — diff engine &amp; save model rewrite</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>File</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td><code>lib/companies/diff.ts</code></td><td>Rewritten as the single engine (§3). <code>computeDiff</code> kept as an alias.</td></tr>
+      <tr><td><code>lib/companies/storage.ts</code></td><td>Separate base / draft keys; <code>loadCompany</code>/<code>loadCompanies</code> return the working copy (draft ?? base); <code>saveCompany</code> saves a draft; local ids start at <strong>9,000,001</strong> (the old 1000+ could collide with API ids); migration of the old layout.</td></tr>
+      <tr><td><code>lib/companies/sync.ts</code></td><td><code>commitCompany</code> (fetch → conflicts → rebase → send → re-fetch → verify), <code>emptyBase</code>, <code>deleteCompanyEverywhere</code>.</td></tr>
+      <tr><td><code>lib/api/write.ts</code></td><td>Ops → requests only: <code>sendChanges</code>, <code>createFromChanges</code>, <code>fieldBody</code>.</td></tr>
+      <tr><td><code>lib/api/repository.ts</code></td><td><code>fetchCompanyBase</code> (mapped and normalised so fresh and stored copies compare equal); <code>loadCompanyRecord</code> returns <code>{ base, draft, fresh }</code> and always refreshes the base; skips fetching for local-only companies.</td></tr>
+      <tr><td><code>store/company.store.ts</code></td><td><code>original</code> = base, <code>draft</code> autosaved, <code>changes</code> computed synchronously; <code>open</code>, <code>committed</code>, <code>baseMissing</code> (opened offline with no cached base), <code>saveError</code> (autosave failed). <code>resetDraft</code> deletes the draft and keeps the "created here" marker.</td></tr>
+      <tr><td><code>types/company.types.ts</code></td><td>Changes gain <code>key</code>, <code>sync: 'api' | 'local'</code>, <code>reason</code>.</td></tr>
+      <tr><td><code>pages/companies/CompanyEditorPage.tsx</code></td><td>Opens with base + draft (draft read from storage, not the query cache); empty base for new companies; stand-in base when offline.</td></tr>
+      <tr><td><code>pages/companies/index.tsx</code></td><td>Row click no longer seeds the editor with the partial list row; "+ New company" uses <code>nextCompanyId</code>.</td></tr>
+      <tr><td><code>CommitModal.tsx</code></td><td>Rewritten around <code>commitCompany</code>: conflict handling; toasts for landed / unlanded / local-only / unverified.</td></tr>
+      <tr><td><code>CommitDialog.tsx</code></td><td>"local only" tag per row; conflict view; committing state.</td></tr>
+      <tr><td><code>CompanyEditor.tsx</code></td><td>Uses the store's changes; "N uncommitted changes · saved locally" hint; navigation blocked only if autosave failed; Delete targets the draft; button renamed <strong>Commit changes</strong>.</td></tr>
+      <tr><td><code>ui.css</code></td><td><code>.commit-row__local</code> tag style.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout info">
+    <strong>Migration</strong>
+    Records from the old layout — an edited copy under <code>acn_company_{id}</code> listed in <code>acn_company_edited</code>, or a record created locally — move to the draft key on first load. Nothing is lost; the base is re-fetched when the company is next opened.
+  </div>
+</section>
+
+<section id="files">
+  <h2><span class="num">6</span> All files touched</h2>
+  <h3><span class="tag new">New</span></h3>
+  <ul class="files">
+    <li><code>src/lib/api/write.ts</code></li>
+    <li><code>src/lib/companies/sync.ts</code></li>
+    <li><code>src/lib/companies/diff.test.ts</code></li>
+    <li><code>src/lib/companies/sync.test.ts</code></li>
+    <li><code>src/lib/events/storage.ts</code></li>
+    <li><code>docs/CHANGELOG-2026-10-13-API-WRITES.md</code></li>
+    <li><code>docs/CHANGELOG-2026-10-13-API-WRITES.html</code> <span class="note">(this page)</span></li>
+  </ul>
+  <h3><span class="tag mod">Modified</span></h3>
+  <ul class="files">
+    <li><code>.env.example</code> <span class="note">— VITE_API_TOKEN</span></li>
+    <li><code>docs/API-WIRING.md</code></li>
+    <li><code>mock/server.mjs</code> <span class="note">— write routes</span></li>
+    <li><code>src/components/company/CompanyEditor.tsx</code></li>
+    <li><code>src/components/company/modals/CommitDialog.tsx</code></li>
+    <li><code>src/components/company/modals/CommitModal.tsx</code></li>
+    <li><code>src/components/ui/ui.css</code></li>
+    <li><code>src/hooks/useRecords.ts</code> <span class="note">— comment</span></li>
+    <li><code>src/lib/api/cache.ts</code></li>
+    <li><code>src/lib/api/client.ts</code></li>
+    <li><code>src/lib/api/client.test.ts</code></li>
+    <li><code>src/lib/api/endpoints.ts</code></li>
+    <li><code>src/lib/api/index.ts</code></li>
+    <li><code>src/lib/api/map-company.ts</code> <span class="note">— comment</span></li>
+    <li><code>src/lib/api/repository.ts</code></li>
+    <li><code>src/lib/api/types.ts</code></li>
+    <li><code>src/lib/companies/diff.ts</code></li>
+    <li><code>src/lib/companies/storage.ts</code></li>
+    <li><code>src/lib/events/events.test.ts</code></li>
+    <li><code>src/lib/events/write.ts</code></li>
+    <li><code>src/lib/press-releases/storage.ts</code> <span class="note">— comment</span></li>
+    <li><code>src/lib/sheet/commit.test.ts</code></li>
+    <li><code>src/pages/companies/CompanyEditorPage.tsx</code></li>
+    <li><code>src/pages/companies/index.tsx</code></li>
+    <li><code>src/pages/events/EventDetailPage.tsx</code></li>
+    <li><code>src/pages/events/index.tsx</code></li>
+    <li><code>src/store/company.store.ts</code></li>
+    <li><code>src/types/company.types.ts</code></li>
+  </ul>
+  <h3><span class="tag del">Deleted</span></h3>
+  <ul class="files">
+    <li><code>src/lib/api/write.test.ts</code> <span class="note">— round 1; cases moved into diff.test.ts</span></li>
+  </ul>
+</section>
+
+<section id="tests">
+  <h2><span class="num">7</span> Tests</h2>
+  <p>Kept deliberately small.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>File</th><th>Covers</th></tr></thead>
+    <tbody>
+      <tr><td><code>companies/diff.test.ts</code> (11)</td><td>Wire names and <code>""</code> clearing; <code>""</code> = null; local-only marking; logo filename vs upload; sectors by name + primary; listings by (mic, ticker); field coverage; <code>applyChanges</code> round-trip; rebase keeps both sides; conflict detection.</td></tr>
+      <tr><td><code>companies/sync.test.ts</code> (3)</td><td>Draft deleted when everything lands; leftover kept exactly; conflict stops before sending.</td></tr>
+      <tr><td><code>api/client.test.ts</code> (+1)</td><td><code>apiSend</code> method, JSON body, Bearer header.</td></tr>
+      <tr><td><code>events/events.test.ts</code></td><td>Real event payload; invalid draft not sent; failed save kept locally and cleared on success.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Pre-existing lint errors (not from this session) remain in <code>DistributionTab.tsx</code>, <code>IdentifiersTab.tsx</code> and <code>store/ui.store.ts</code>.</p>
+</section>
+
+<section id="behaviour">
+  <h2><span class="num">8</span> Behaviour changes users will notice</h2>
+  <ul>
+    <li>Company editor: <strong>Commit changes</strong> (was "Save changes"); the header shows the uncommitted count; edits survive a refresh; no "unsaved changes" prompt on leaving.</li>
+    <li>The commit dialog marks local-only changes and can stop on a conflict.</li>
+    <li>Opening a company from the list waits for the full API record (one request) instead of showing the list row first.</li>
+    <li>Companies created in the app get ids from 9,000,001.</li>
+    <li>Sheet edits become drafts, committed from the company editor.</li>
+    <li>Events are editable, deletable and creatable.</li>
+  </ul>
+</section>
+
+<section id="questions">
+  <h2><span class="num">9</span> Open questions for the API team</h2>
+  <ol>
+    <li><strong>JWT</strong> — how should the admin obtain a token? Currently <code>VITE_API_TOKEN</code>.</li>
+    <li><strong>Do industry, listing and social-link writes show up in <code>GET /api/Companies/{id}/full</code>?</strong> If not, every sector or listing change will be reported as unlanded after each commit and kept in the draft, and a retry would re-POST listings.</li>
+    <li><strong>What do <code>POST /api/Companies</code> and <code>POST /api/Events</code> return?</strong> The code accepts a bare id or <code>{ id | companyId | compId | eventId }</code>.</li>
+    <li><strong>Which <code>platform</code> spelling does <code>/social-links/{platform}</code> expect?</strong> The code sends <code>instagram</code>.</li>
+  </ol>
+</section>
+
+<section id="next">
+  <h2><span class="num">10</span> Not done / next</h2>
+  <ul>
+    <li>The sheet (table) view still has its own model; it was intentionally left out beyond saving through drafts. Planned as a separate task.</li>
+    <li>Articles remain local-only — the API has no article writes.</li>
+    <li>No browser or real-API verification yet — needs a token.</li>
+  </ul>
+</section>
+
+<footer>Generated from <code>docs/CHANGELOG-2026-10-13-API-WRITES.md</code></footer>
+
+</main>
+</div>
+</body>
+</html>

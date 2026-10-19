@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCompanyStore } from '../../store/company.store'
 import { Button } from '../../components/ui/Button'
 import { Topbar } from '../../components/ui/Topbar'
 import { BackToTop } from '../../components/ui/BackToTop'
@@ -11,7 +10,7 @@ import { filterOptions, passesFilter } from '../../lib/list/filters'
 import { Pagination } from '../../components/ui/Pagination'
 import { SyncStatus } from '../../components/ui/SyncStatus'
 import { SectionNav } from '../../components/ui/SectionNav'
-import { saveCompany } from '../../lib/companies/storage'
+import { nextCompanyId, saveCompany } from '../../lib/companies/storage'
 import { useAllCompanies, useRefreshRecords } from '../../hooks/useRecords'
 import { blankCompany } from '../../lib/companies/blank'
 import type { CompanyFull } from '../../types/company.types'
@@ -36,17 +35,6 @@ interface ColumnVisibility {
  * rather than for bandwidth.
  */
 const PAGE_SIZE = 100
-
-function generateCompanyId(): number {
-  const existingIds = Object.keys(localStorage)
-    .filter(k => k.startsWith('acn_company_'))
-    .map(k => {
-      const parsed = parseInt(k.replace('acn_company_', ''), 10)
-      return isNaN(parsed) ? 0 : parsed
-    })
-  const max = existingIds.length > 0 ? Math.max(...existingIds) : 999
-  return max + 1
-}
 
 function getInitials(name: string): string {
   return name
@@ -80,7 +68,6 @@ const sectorTypes = (company: CompanyFull) => [
 
 export default function CompaniesListPage() {
   const navigate = useNavigate()
-  const { setOriginal } = useCompanyStore()
 
   // Every company on the wire — all 9,439 — served from the on-disk cache when
   // there is one, with anything created here folded in. See lib/api/repository.ts.
@@ -211,15 +198,16 @@ export default function CompaniesListPage() {
     setPage(1)
   }
 
+  // No store seeding here: the list row is a partial projection, and the editor
+  // must diff against the full API version, which it loads itself.
   const handleRowClick = (company: CompanyFull) => {
-    setOriginal(company)
     navigate(`/companies/${company.id}`)
   }
 
   const handleNewCompany = () => {
-    const company = blankCompany(generateCompanyId())
+    // Saved as a draft; it reaches the API on its first commit.
+    const company = blankCompany(nextCompanyId())
     saveCompany(company)
-    setOriginal(company)
     navigate(`/companies/${company.id}`)
   }
 

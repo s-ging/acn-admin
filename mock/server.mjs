@@ -503,6 +503,39 @@ function feedAt(i) {
   }
 }
 
+// ── Writes ──────────────────────────────────────────────────────────────────
+//
+// Accepted and logged, NOT persisted: a later GET still serves the fixtures.
+// Enough to drive the save/delete flows end to end. The real API's create
+// response is undeclared in the spec, so a create answers `{ id }` — one of the
+// shapes `createdId` in src/lib/api/endpoints.ts accepts.
+
+const WRITE_ROUTES = [
+  /^\/api\/Companies$/,
+  /^\/api\/Companies\/\d+$/,
+  /^\/api\/Companies\/\d+\/industries\/\d+$/,
+  /^\/api\/Companies\/\d+\/listings(\/[^/]+\/[^/]+)?$/,
+  /^\/api\/Companies\/\d+\/social-links\/[^/]+$/,
+  /^\/api\/Events(\/\d+)?$/,
+]
+
+let nextCreatedId = 900000
+
+function handleWrite(req, url, origin, res) {
+  const path = url.pathname.replace(/\/+$/, '')
+  let body = ''
+  req.on('data', chunk => { body += chunk })
+  req.on('end', () => {
+    if (!WRITE_ROUTES.some(route => route.test(path))) {
+      return send(res, 404, { error: `No mock route for ${req.method} ${path}` }, origin)
+    }
+    const auth = req.headers.authorization ? 'with token' : 'NO TOKEN'
+    console.log(`200 ${req.method} ${path} (${auth}) ${body.slice(0, 200)}`)
+    const isCreate = req.method === 'POST' && (path === '/api/Companies' || path === '/api/Events')
+    return send(res, 200, isCreate ? { id: nextCreatedId++ } : '', origin)
+  })
+}
+
 // ── Server ──────────────────────────────────────────────────────────────────
 
 const server = createServer((req, res) => {
@@ -513,16 +546,19 @@ const server = createServer((req, res) => {
     const headers = { Vary: 'Origin' }
     if (CORS_ORIGIN && origin === CORS_ORIGIN) {
       headers['Access-Control-Allow-Origin'] = origin
-      headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+      headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+      headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
     }
     res.writeHead(204, headers)
     return res.end()
   }
 
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+    return handleWrite(req, url, origin, res)
+  }
+
   if (req.method !== 'GET') {
-    // Every operation in the real spec is a GET; nothing here accepts a write,
-    // which is the same wall lib/events/write.ts is benched against.
-    return send(res, 405, { error: 'The ACN Newswire API is read-only.' }, origin)
+    return send(res, 405, { error: `${req.method} is not supported.` }, origin)
   }
 
   const started = Date.now()

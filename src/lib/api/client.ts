@@ -5,9 +5,10 @@
 //
 // Two things about that spec shape everything in this folder:
 //
-//   1. Every operation is a GET. There is no POST/PUT/PATCH/DELETE for
-//      companies, articles or events, so the API is a *read* source only.
-//      Editing still goes to localStorage — see lib/companies/storage.ts.
+//   1. Companies (with their industries, listings and social links) and events
+//      can be written — POST/PUT/DELETE, all behind a Bearer JWT. Articles,
+//      contacts and wire codes are still GET-only. See `apiSend` and
+//      lib/api/write.ts.
 //   2. None of the 200 responses declare a schema, so the types in ./types.ts
 //      are hand-written from the live responses rather than generated. Treat
 //      them as a best-effort record of what the server actually sends.
@@ -111,8 +112,12 @@ export class ApiError extends Error {
   }
 }
 
-/** The spec declares a `Bearer` JWT scheme; the dev host serves reads without one. */
-let authToken: string | null = null
+/**
+ * The spec declares a `Bearer` JWT scheme. The dev host serves reads without
+ * one; writes need it. Seeded from `VITE_API_TOKEN` until there is a login flow.
+ */
+let authToken: string | null =
+  (import.meta.env.VITE_API_TOKEN as string | undefined)?.trim() || null
 
 export function setAuthToken(token: string | null): void {
   authToken = token
@@ -135,21 +140,25 @@ function buildQuery(params: Record<string, QueryValue> = {}): string {
   return qs ? `?${qs}` : ''
 }
 
-export async function apiGet<T>(
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+
+async function request<T>(
+  method: HttpMethod,
   path: string,
-  params?: Record<string, QueryValue>,
-  signal?: AbortSignal
+  { params, body, signal }: { params?: Record<string, QueryValue>; body?: unknown; signal?: AbortSignal } = {}
 ): Promise<T> {
   const url = `${baseUrl}${path}${buildQuery(params)}`
 
   let response: Response
   try {
     response = await fetch(url, {
-      method: 'GET',
+      method,
       headers: {
         Accept: 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
       signal,
     })
   } catch (err) {
@@ -159,16 +168,38 @@ export async function apiGet<T>(
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, url, `${response.status} ${response.statusText} — ${path}`)
+    throw new ApiError(response.status, url, `${response.status} ${response.statusText} — ${method} ${path}`)
   }
 
-  // A few endpoints answer 200 with an empty body; `[]` is the useful reading.
+  // A few endpoints answer 200 with an empty body. For a read `[]` is the useful
+  // reading; for a write there is simply nothing to return.
   const text = await response.text()
-  if (!text.trim()) return [] as unknown as T
+  if (!text.trim()) return (method === 'GET' ? [] : null) as unknown as T
 
   try {
     return JSON.parse(text) as T
   } catch {
     throw new ApiError(response.status, url, `The API returned a non-JSON body for ${path}.`)
   }
+}
+
+export function apiGet<T>(
+  path: string,
+  params?: Record<string, QueryValue>,
+  signal?: AbortSignal
+): Promise<T> {
+  return request<T>('GET', path, { params, signal })
+}
+
+/**
+ * A write. The spec declares no response schemas for these either, so the
+ * result is whatever the server sent back — `null` for an empty body.
+ */
+export function apiSend<T = unknown>(
+  method: Exclude<HttpMethod, 'GET'>,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal
+): Promise<T> {
+  return request<T>(method, path, { body, signal })
 }

@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { useCompanyStore } from '../../store/company.store'
 import { useUIStore } from '../../store/ui.store'
 import { useToastStore } from '../../store/toast.store'
-import { computeDiff } from '../../lib/companies/diff'
+import { deleteCompanyEverywhere } from '../../lib/companies/sync'
+import { useQueryClient } from '@tanstack/react-query'
 import { TabBar } from '../ui/TabBar'
 import { Topbar } from '../ui/Topbar'
 import { MetadataPanel } from './panels/MetadataPanel'
@@ -40,7 +41,7 @@ const TAB_COMPONENTS = {
 export default function CompanyEditor() {
   const navigate = useNavigate()
   const { activeTab, setTab, activeModal, openModal } = useUIStore()
-  const { original, draft, resetCount, computeChanges, resetDraft } = useCompanyStore()
+  const { original, draft, changes, saveError, resetCount, resetDraft } = useCompanyStore()
   const addToast = useToastStore(s => s.addToast)
   const [modalMode, setModalMode] = useState<'commit' | 'discard'>('commit')
 
@@ -98,9 +99,9 @@ function useNavigationBlocker(shouldBlock: boolean) {
 }
 // ===== END CUSTOM HOOK =====
 
-// hasUnsavedChanges
-const hasUnsavedChanges = !!(original && draft && 
-  JSON.stringify(original) !== JSON.stringify(draft));
+// Edits autosave as a draft, so leaving the page loses nothing — unless the
+// autosave itself failed, which is the one case worth stopping navigation for.
+const hasUnsavedChanges = !!saveError;
 
 const blocker = useNavigationBlocker(hasUnsavedChanges);
 
@@ -115,11 +116,35 @@ const handleStay = useCallback(() => {
 }, [blocker])
 
 
+  const queryClient = useQueryClient()
+  const [deleting, setDeleting] = useState(false)
+
+  // Deletes from the API, then locally. Unlike a save there is no local
+  // fallback: a delete that only happened here would come back on the next sync.
+  const handleDelete = useCallback(async () => {
+    // The draft, not the base: it carries the created-here marker that decides
+    // whether there is anything on the API to delete.
+    const target = draft ?? original
+    if (!target || deleting) return
+    if (!window.confirm(`Delete "${target.name_en || 'Untitled'}" (#${target.id})? This removes it from the newswire and cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      await deleteCompanyEverywhere(target)
+      queryClient.invalidateQueries({ queryKey: ['companies'] })
+      queryClient.removeQueries({ queryKey: ['company', target.id] })
+      resetDraft()
+      addToast(`Deleted ${target.name_en || 'company'}.`, 'success')
+      navigate('/companies')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error', 6000)
+      setDeleting(false)
+    }
+  }, [original, draft, deleting, queryClient, resetDraft, addToast, navigate])
+
   const handleSave = useCallback(() => {
     setModalMode('commit')
-    computeChanges()
     openModal('commit')
-  }, [setModalMode, computeChanges, openModal])
+  }, [setModalMode, openModal])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -169,8 +194,18 @@ const handleStay = useCallback(() => {
         }
         actions={
           <>
+            {saveError ? (
+              <span className="hint" style={{ color: 'var(--color-text-danger)' }}>{saveError}</span>
+            ) : changes.length > 0 && (
+              <span className="hint">
+                {changes.length} uncommitted change{changes.length === 1 ? '' : 's'} · saved locally
+              </span>
+            )}
+            <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => {
-              if (!original || !draft || computeDiff(original, draft).length === 0) {
+              if (changes.length === 0) {
                 addToast('No changes to discard', 'info')
                 return
               }
@@ -180,7 +215,7 @@ const handleStay = useCallback(() => {
               Discard
             </Button>
             <Button variant="primary" size="sm" onClick={handleSave}>
-              Save changes
+              Commit changes
             </Button>
           </>
         }

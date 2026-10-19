@@ -448,3 +448,97 @@ export interface ApiCompanyFull {
   rss: ApiCompanyRss[]
   contacts: ApiCompanyFullContact[]
 }
+
+// ── Writes ──────────────────────────────────────────────────────────────────
+//
+// Unlike the read shapes above, these ARE declared in the spec
+// (components.schemas), so they are transcribed from it rather than from the
+// wire. On the Update* shapes every field is optional — an absent field is left
+// as it is, which is why the company save sends only what changed.
+
+/** `GET /api/Sectors` — the wire's own sector taxonomy, the id space `industryId` uses. */
+export interface ApiSector {
+  id: number
+  name: string | null
+  description: string | null
+  subId: number | null
+  title: string | null
+}
+
+export interface ApiCompanyBasicInfo {
+  companyNameEN?: string | null
+  companyNameCH?: string | null
+  companyNameCT?: string | null
+  companyNameJP?: string | null
+  companyNameKO?: string | null
+  logoFilename?: string | null
+  topLogoFilename?: string | null
+  boilerPlate?: string | null
+  extBoilerPlate?: string | null
+  reportFilename?: string | null
+  reportFileDate?: string | null
+  reportFileSize?: string | null
+  url?: string | null
+  /** max 200 */
+  legalName?: string | null
+  countryCode?: string | null
+}
+
+/** The legacy `/details` field names, unchanged. */
+export type ApiCompanyDetailsWrite = Partial<Record<keyof ApiCompanyExtraDetails, string | null>>
+
+/** `POST /api/Companies`. `basicInfo.companyNameEN` is required. */
+export interface CreateCompanyDto {
+  basicInfo: ApiCompanyBasicInfo & { companyNameEN: string }
+  details?: ApiCompanyDetailsWrite
+}
+
+/** `PUT /api/Companies/{id}`. */
+export interface UpdateCompanyDto {
+  basicInfo?: ApiCompanyBasicInfo
+  details?: ApiCompanyDetailsWrite
+}
+
+/** `PUT /api/Companies/{companyId}/industries/{industryId}`. */
+export interface SaveCompanyIndustryDto {
+  isPrimary?: boolean | null
+}
+
+/** `POST /api/Companies/{companyId}/listings`. `mic` is the `exchangeId` on reads. */
+export interface CreateCompanyListingDto {
+  mic: string
+  /** max 20 */
+  ticker: string
+  isPrimary?: boolean
+  sortOrder?: number
+}
+
+/** `PUT /api/Companies/{companyId}/listings/{mic}/{ticker}`. */
+export interface UpdateCompanyListingDto {
+  isPrimary?: boolean | null
+  sortOrder?: number | null
+}
+
+/** `PUT /api/Companies/{companyId}/social-links/{platform}`. */
+export interface SaveCompanySocialLinkDto {
+  /** max 300 */
+  url: string
+}
+
+/**
+ * `POST /api/Events` / `PUT /api/Events/{id}`.
+ *
+ * The `/full` field names, not the legacy ones: `name` not `description`,
+ * `isPublished` not a "y"/" " string, `organiserId` not `compId`. Dates are
+ * date-only `YYYY-MM-DD`. `name` and `startDate` are required on create.
+ */
+export interface SaveEventDto {
+  name?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  location?: string | null
+  url?: string | null
+  eventImage?: string | null
+  isPublished?: boolean | null
+  organiserId?: number | null
+}

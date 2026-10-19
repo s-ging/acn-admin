@@ -17,14 +17,18 @@
 //                    origin's /wire proxy, never straight at the API — the
 //                    API's CORS is an allowlist. See resolveBaseUrl there.
 //
-// The one fact worth repeating: every operation in the spec is a GET. There is
-// no write path, so editing still goes to localStorage.
+//   write.ts       — CompanyFull → the wire: the save path for companies.
+//
+// The one fact worth repeating: companies and events can be written (with a
+// Bearer token); articles cannot. Every save goes to localStorage first and
+// stays there as the fallback if the API does not take it.
 
 export {
   API_PROXY_PREFIX,
   API_UPSTREAM_URL,
   ApiError,
   apiGet,
+  apiSend,
   getApiBaseUrl,
   setApiBaseUrl,
   setAuthToken,

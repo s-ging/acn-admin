@@ -1,54 +1,17 @@
 // src/lib/events/write.ts
-// The event write path, benched.
+// The event write path: POST /api/Events, PUT /api/Events/{id},
+// DELETE /api/Events/{id}.
 //
-// Benched, not absent: the editor form, its validation and its change
-// detection are all real and exercised, and the only thing that does not happen
-// is the request. That is deliberate — the interesting part of a write path is
-// the shape of what you would send and whether the form can produce it, and
-// both can be settled now. Turning it on should be a one-line change here plus
-// an `apiSend` call in `submitEventDraft`.
-//
-// It is benched for two reasons, and the second is the one that matters:
-//
-//   1. It was asked to be.
-//   2. There is nothing to call. Every operation in the swagger document is a
-//      GET — there is no POST/PUT/PATCH/DELETE for events, or for anything else.
-//      A write path here could only 404 or 405.
-//
-// So `EVENTS_WRITE` is not hiding a finished feature behind a flag. It is
-// marking a boundary the API has not yet reached, and `PROPOSED_ENDPOINTS`
-// records what would have to exist on the other side of it.
+// A save is local-first, as companies are (lib/companies/sync.ts): the draft is
+// written to localStorage, then sent. If the send fails the draft stays there as
+// a pending edit, the detail page reopens it, and the next Save retries. Only a
+// successful send clears it.
 
+import { ApiError } from '../api/client'
+import { createEvent, createdId, deleteEvent, updateEvent } from '../api/endpoints'
+import type { SaveEventDto } from '../api/types'
+import { clearPendingEvent, savePendingEvent } from './storage'
 import type { Event } from '../../types/event.types'
-
-/**
- * Whether event writes are live.
- *
- * Flip to true ONLY once the endpoints in `PROPOSED_ENDPOINTS` exist and
- * `submitEventDraft` actually calls them — on its own this flag just changes a
- * refusal into a broken request.
- */
-export const EVENTS_WRITE = false
-
-/**
- * The endpoints a live write path would need.
- *
- * Written down rather than left implicit so the request to the API team is a
- * concrete one. Field names follow the wire's existing casing for events
- * (`compId`, `eventImage`, `publish`), not this app's, because that is what the
- * rest of the API uses.
- */
-export const PROPOSED_ENDPOINTS = {
-  create: 'POST /api/Events',
-  update: 'PUT /api/Events/{id}',
-  delete: 'DELETE /api/Events/{id}',
-  /**
-   * `GET /api/Events/{id}` is in the spec but answers 500 for every id. A write
-   * path needs it working: without a read-back there is no way to confirm what
-   * was saved, and the list is cached for an hour.
-   */
-  readBack: 'GET /api/Events/{id} — currently 500, needs fixing',
-} as const
 
 /**
  * The editable shape of an event.
@@ -165,23 +128,26 @@ export function changedFields(before: EventDraft, after: EventDraft): (keyof Eve
 }
 
 export type WriteResult =
-  | { ok: true }
-  | { ok: false; reason: 'benched' | 'invalid'; message: string; errors?: FieldError[] }
+  | { ok: true; id: number | null }
+  | { ok: false; reason: 'invalid'; message: string; errors: FieldError[] }
+  | { ok: false; reason: 'local'; message: string }
+
+function describe(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 401 || err.status === 403) return 'the API refused the request — check VITE_API_TOKEN'
+    if (err.status === 0) return 'the API could not be reached'
+  }
+  return err instanceof Error ? err.message : String(err)
+}
 
 /**
- * Where a save would happen.
+ * Saves a draft: validate, keep a local copy, send, and clear the local copy
+ * once the API has it.
  *
- * Validation runs for real, so an invalid draft is reported as invalid rather
- * than as benched — that is the more useful answer, and it keeps the validation
- * honest while the request is parked.
- *
- * The payload is built and returned to the caller even though it is not sent, so
- * the editor can show exactly what it would post. That is the whole point of a
- * bench: the thing is assembled and inspectable, just not connected.
+ * Returns the event's id on success — the new one for a create, or null if the
+ * API created it without saying which id it got.
  */
-export async function submitEventDraft(
-  draft: EventDraft
-): Promise<WriteResult & { payload?: Record<string, unknown> }> {
+export async function submitEventDraft(draft: EventDraft): Promise<WriteResult> {
   const errors = validateEventDraft(draft)
   if (errors.length > 0) {
     return {
@@ -192,45 +158,54 @@ export async function submitEventDraft(
     }
   }
 
+  savePendingEvent(draft)
   const payload = eventDraftPayload(draft)
 
-  if (!EVENTS_WRITE) {
+  try {
+    if (draft.id === null) {
+      const id = createdId(await createEvent(payload))
+      clearPendingEvent(null)
+      return { ok: true, id }
+    }
+    await updateEvent(draft.id, payload)
+    clearPendingEvent(draft.id)
+    return { ok: true, id: draft.id }
+  } catch (err) {
     return {
       ok: false,
-      reason: 'benched',
-      message: `Saving is off: the API has no write endpoint for events (${
-        draft.id === null ? PROPOSED_ENDPOINTS.create : PROPOSED_ENDPOINTS.update
-      } does not exist).`,
-      payload,
+      reason: 'local',
+      message: `Saved locally only: ${describe(err)}. It will be sent on the next save.`,
     }
   }
+}
 
-  // When this turns on: apiSend(PROPOSED_ENDPOINTS…, payload), then invalidate
-  // the cached event list — it is what the detail page reads from.
-  throw new Error('EVENTS_WRITE is on but submitEventDraft has no request to make.')
+/** Deletes an event. Throws if the API refuses — there is no local fallback for a delete. */
+export async function deleteEventRecord(id: number): Promise<void> {
+  try {
+    await deleteEvent(id)
+  } catch (err) {
+    throw new Error(`Could not delete: ${describe(err)}.`, { cause: err })
+  }
+  clearPendingEvent(id)
 }
 
 /**
- * The draft as the wire would want it.
+ * The draft as the API wants it — the /full field names (`name`, `isPublished`,
+ * `organiserId`), not the legacy ones this app reads from.
  *
- * The wire's field names and conventions, not this app's: `compId`, `eventImage`
- * as a bare filename, and `publish` as "y" or " " — which is how the existing
- * 839 records are stored, blank rather than "n".
+ * Dates go as date-only `YYYY-MM-DD`: the +08:00 offset and the 23:59:59 end
+ * are read-side repairs, and sending them back would change what is stored.
  */
-export function eventDraftPayload(draft: EventDraft): Record<string, unknown> {
+export function eventDraftPayload(draft: EventDraft): SaveEventDto {
   return {
-    ...(draft.id === null ? {} : { id: draft.id }),
-    description: draft.description.trim(),
-    // Date-only midnight, matching how the wire stores these. The +08:00 offset
-    // is a read-side concern; sending it back would change what is stored.
-    startDate: `${draft.startDate}T00:00:00`,
-    endDate: `${draft.endDate}T00:00:00`,
+    name: draft.description.trim(),
+    startDate: draft.startDate,
+    endDate: draft.endDate || null,
     location: draft.location.trim(),
+    // Stored bare on the wire; normalised to https:// on read.
     url: draft.url.trim().replace(/^https?:\/\//i, ''),
     eventImage: draft.eventImage.trim(),
-    compId: draft.compId,
-    publish: draft.publish ? 'y' : ' ',
-    // Constant on all 839 existing records; sent so a created event matches them.
-    lid: '2',
+    isPublished: draft.publish,
+    organiserId: draft.compId,
   }
 }

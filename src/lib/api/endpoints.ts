@@ -2,7 +2,7 @@
 // One function per operation in the swagger document, with the server's own
 // parameter names and constraints kept intact.
 //
-// All seventeen operations are covered. They return wire shapes, not app models
+// Every operation is covered, reads and writes. They return wire shapes, not app models
 // — mapping to CompanyFull / PressRelease happens in ./map-company.ts and
 // ./map-article.ts, so a caller that just wants to read the API can.
 //
@@ -18,7 +18,7 @@
 // which all still answer. See the ApiEventFull and ApiCompanyFull notes in
 // ./types.ts for what moved between the two shapes.
 
-import { apiGet } from './client'
+import { apiGet, apiSend } from './client'
 import type {
   ApiArticleFeedItem,
   ApiArticleListItem,
@@ -31,6 +31,14 @@ import type {
   ApiEventFull,
   ApiEventRelease,
   ApiPressRelease,
+  ApiSector,
+  CreateCompanyDto,
+  CreateCompanyListingDto,
+  SaveCompanyIndustryDto,
+  SaveCompanySocialLinkDto,
+  SaveEventDto,
+  UpdateCompanyDto,
+  UpdateCompanyListingDto,
 } from './types'
 
 /** `Size` is capped at 100 by the server; asking for more is a 400. */
@@ -312,4 +320,107 @@ export function fetchEventReleases(
     undefined,
     signal
   )
+}
+
+/** `GET /api/Sectors` — the wire's sector taxonomy, which `industryId` indexes. */
+export function fetchSectors(signal?: AbortSignal): Promise<ApiSector[]> {
+  return apiGet<ApiSector[]>('/api/Sectors', undefined, signal)
+}
+
+// ── Writes ──────────────────────────────────────────────────────────────────
+//
+// Every one of these needs the Bearer token (see setAuthToken in ./client.ts).
+// None declares a response schema; `createCompany` / `createEvent` are typed
+// `unknown` for that reason, and `createdId` digs the new id out.
+//
+// The sub-resource GETs (/industries, /listings, /social-links) answered `[]`
+// for every company probed on 2026-10-13 — including ones whose /full record
+// carries tickers and sectors — so they appear to read a newer store than /full
+// does. The writes below are keyed to match what /full returns regardless.
+
+const enc = encodeURIComponent
+
+export function createCompany(dto: CreateCompanyDto): Promise<unknown> {
+  return apiSend('POST', '/api/Companies', dto)
+}
+
+export function updateCompany(id: number, dto: UpdateCompanyDto): Promise<unknown> {
+  return apiSend('PUT', `/api/Companies/${id}`, dto)
+}
+
+export function deleteCompany(id: number): Promise<unknown> {
+  return apiSend('DELETE', `/api/Companies/${id}`)
+}
+
+export function saveCompanyIndustry(
+  companyId: number,
+  industryId: number,
+  dto: SaveCompanyIndustryDto
+): Promise<unknown> {
+  return apiSend('PUT', `/api/Companies/${companyId}/industries/${industryId}`, dto)
+}
+
+export function deleteCompanyIndustry(companyId: number, industryId: number): Promise<unknown> {
+  return apiSend('DELETE', `/api/Companies/${companyId}/industries/${industryId}`)
+}
+
+export function createCompanyListing(companyId: number, dto: CreateCompanyListingDto): Promise<unknown> {
+  return apiSend('POST', `/api/Companies/${companyId}/listings`, dto)
+}
+
+export function updateCompanyListing(
+  companyId: number,
+  mic: string,
+  ticker: string,
+  dto: UpdateCompanyListingDto
+): Promise<unknown> {
+  return apiSend('PUT', `/api/Companies/${companyId}/listings/${enc(mic)}/${enc(ticker)}`, dto)
+}
+
+export function deleteCompanyListing(companyId: number, mic: string, ticker: string): Promise<unknown> {
+  return apiSend('DELETE', `/api/Companies/${companyId}/listings/${enc(mic)}/${enc(ticker)}`)
+}
+
+export function saveCompanySocialLink(
+  companyId: number,
+  platform: string,
+  dto: SaveCompanySocialLinkDto
+): Promise<unknown> {
+  return apiSend('PUT', `/api/Companies/${companyId}/social-links/${enc(platform)}`, dto)
+}
+
+export function deleteCompanySocialLink(companyId: number, platform: string): Promise<unknown> {
+  return apiSend('DELETE', `/api/Companies/${companyId}/social-links/${enc(platform)}`)
+}
+
+export function createEvent(dto: SaveEventDto): Promise<unknown> {
+  return apiSend('POST', '/api/Events', dto)
+}
+
+export function updateEvent(id: number, dto: SaveEventDto): Promise<unknown> {
+  return apiSend('PUT', `/api/Events/${id}`, dto)
+}
+
+export function deleteEvent(id: number): Promise<unknown> {
+  return apiSend('DELETE', `/api/Events/${id}`)
+}
+
+/**
+ * The id of a record a POST just created.
+ *
+ * The spec does not say what a create returns, so this accepts the shapes an
+ * ASP.NET controller plausibly sends — a bare number, or an object carrying the
+ * id under one of the wire's names for it — and returns null when it finds none.
+ */
+export function createdId(response: unknown): number | null {
+  if (typeof response === 'number' && Number.isInteger(response)) return response
+  if (typeof response === 'string' && /^\d+$/.test(response.trim())) return Number(response)
+  if (response && typeof response === 'object') {
+    const record = response as Record<string, unknown>
+    for (const key of ['id', 'companyId', 'compId', 'eventId']) {
+      const value = record[key]
+      if (typeof value === 'number' && Number.isInteger(value)) return value
+    }
+  }
+  return null
 }

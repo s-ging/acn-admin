@@ -1377,6 +1377,7 @@
 .commit-row__old   { color: var(--color-text-danger); text-decoration: line-through; }
 .commit-row__arrow { color: var(--color-text-tertiary); font-family: var(--font-sans); }
 .commit-row__new   { color: var(--color-text-success); }
+.commit-row__local { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 400; color: var(--color-text-secondary); background: var(--color-bg-secondary, rgb(0 0 0 / 0.05)); cursor: help; }
 
 .commit-footer {
   border-top: 1px solid var(--color-border-tertiary);
