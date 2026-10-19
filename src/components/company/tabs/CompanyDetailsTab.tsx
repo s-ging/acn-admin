@@ -25,6 +25,10 @@ const CompanyDetailsTab = memo(function CompanyDetailsTab() {
           <Field label="OTC" defaultValue={draft.otc ?? ''} placeholder="https://www.mhi.com/news" onChange={e => update({ otc: e.target.value || null } as never)} />
           <Field label="Market ID" defaultValue={draft.market_id ?? ''} placeholder="https://www.mhi.com/news" onChange={e => update({ market_id: e.target.value || null } as never)} />
         </div>
+        <div className="field-row field-row--3" style={{ marginTop: 24 }}>
+          <Field label="Legal name" defaultValue={draft.legal_name ?? ''} placeholder="e.g. Mitsubishi Heavy Industries, Ltd." onChange={e => update({ legal_name: e.target.value || null } as never)} />
+          <Field label="Country code" defaultValue={draft.country_code ?? ''} placeholder="e.g. JP" maxLength={2} onChange={e => update({ country_code: e.target.value.trim().toUpperCase() || null } as never)} />
+        </div>
       </section>
 
       {/* Company Links */}

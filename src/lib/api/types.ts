@@ -391,6 +391,19 @@ export interface ApiCompanyAnnualReport {
  * this unauthenticated endpoint (AC-M2); the backend now strips them from every
  * company DTO. Nothing here reads them, and nothing should start.
  */
+/** `/full` → `industries[]`, and every industries write's response. */
+export interface ApiCompanyIndustry {
+  id: number
+  name: string | null
+  isPrimary: boolean
+}
+
+/** `/full` → `socialLinks[]`. Where `/social-links/{platform}` writes land. */
+export interface ApiCompanySocialLink {
+  platform: string
+  url: string | null
+}
+
 export interface ApiCompanyFull {
   companyId: number
   names: {
@@ -400,6 +413,9 @@ export interface ApiCompanyFull {
     zhHant: string | null
     ko: string | null
   } | null
+  legalName: string | null
+  /** ISO 3166-1 alpha-2, as `countryCode` on the write DTO. */
+  country: string | null
   url: string | null
   urlJa: string | null
   /** Absolute URLs, not the bare filenames the legacy routes sent. */
@@ -442,6 +458,15 @@ export interface ApiCompanyFull {
   } | null
   annualReport: ApiCompanyAnnualReport | null
   sectors: ApiCompanySector[]
+  /**
+   * The writable stores, separate from the legacy `sectors` / `tickers` /
+   * `socials` beside them: a write to /industries, /listings or /social-links
+   * shows up here and only here. Empty on every legacy company.
+   */
+  industries?: ApiCompanyIndustry[]
+  /** Row shape unconfirmed: the dev Exchanges table is empty, so no listing write has landed. */
+  listings?: unknown[]
+  socialLinks?: ApiCompanySocialLink[]
   tickers: ApiTicker[]
   /** Renamed from the legacy `bloomberg`. */
   bloombergCodes: ApiBloombergCode[]

@@ -6,6 +6,7 @@ import { ContextMenu } from '../../ui/ContextMenu'
 import { LanguageDot } from '../../ui/LanguageDot'
 import { SECTORS, SECTOR_TYPES, getSectorsByType } from '../../../lib/sectors'
 import { applySectorRouting } from '../../../lib/sector-routing'
+import { INDUSTRIES } from '../../../lib/industries'
 import {
   LANGUAGES,
   LANGUAGE_STATES,
@@ -75,6 +76,18 @@ export const MetadataPanel = memo(() => {
     })
   }
 
+  // The primary industry is the first; picking one moves it to the front and
+  // keeps any other industries the wire already has.
+  const primaryIndustryId = draft.industries[0]?.industry_id ?? ''
+
+  const handleIndustryChange = (value: string) => {
+    const industry = INDUSTRIES.find(i => i.id === Number(value))
+    const rest = draft.industries.filter(i => i.industry_id !== industry?.id).slice(industry ? 0 : 1)
+    updateDraft({
+      industries: industry ? [{ industry_id: industry.id, industry_name: industry.name }, ...rest] : rest,
+    })
+  }
+
   const handleCopyUsername = () => {
     if (draft.portal_username) {
       navigator.clipboard.writeText(draft.portal_username)
@@ -121,6 +134,21 @@ export const MetadataPanel = memo(() => {
                 <option key={s.id} value={s.id}>{s.sector_name}</option>
               ))}
             </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {/* Industry — the wire's taxonomy, and the one the API can store */}
+      <div className="metadata-panel__section">
+        <span className="label">Industry</span>
+        <select
+          className="metadata-status-select"
+          value={primaryIndustryId}
+          onChange={e => handleIndustryChange(e.target.value)}
+        >
+          <option value="">— None —</option>
+          {INDUSTRIES.map(i => (
+            <option key={i.id} value={i.id}>{i.name}</option>
           ))}
         </select>
       </div>

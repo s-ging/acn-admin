@@ -31,6 +31,7 @@ import type {
 
 export type CollectionName =
   | 'sectors'
+  | 'industries'
   | 'exchange_listings'
   | 'contacts'
   | 'wire_codes'
@@ -55,8 +56,8 @@ export type WireOp =
   | { kind: 'details'; key: keyof ApiCompanyDetailsWrite; value: string }
   | { kind: 'social:put'; platform: string; url: string }
   | { kind: 'social:delete'; platform: string }
-  | { kind: 'industry:put'; name: string; isPrimary: boolean }
-  | { kind: 'industry:delete'; name: string; fallbackId: number }
+  | { kind: 'industry:put'; id: number; isPrimary: boolean }
+  | { kind: 'industry:delete'; id: number }
   | { kind: 'listing:create'; mic: string; ticker: string; isPrimary: boolean; sortOrder: number }
   | { kind: 'listing:update'; mic: string; ticker: string; isPrimary: boolean; sortOrder: number }
   | { kind: 'listing:delete'; mic: string; ticker: string }
@@ -122,6 +123,10 @@ export const FIELDS: FieldDef[] = [
   { path: 'name_ko',      label: 'Company name (KO)',      section: 'basic-info', wire: { to: 'basicInfo', key: 'companyNameKO' } },
   { path: 'status',       label: 'Status',                 section: 'basic-info', wire: { to: 'local', reason: NO_ENDPOINT } },
   { path: 'url',          label: 'Homepage',               section: 'basic-info', wire: { to: 'basicInfo', key: 'url' } },
+  { path: 'legal_name',   label: 'Legal name',             section: 'company-details', wire: { to: 'basicInfo', key: 'legalName' } },
+  // Validated against the API's Countries table, which is empty on the dev host
+  // (2026-10-19) — every code is refused there until it is seeded.
+  { path: 'country_code', label: 'Country code',           section: 'company-details', wire: { to: 'basicInfo', key: 'countryCode' } },
   { path: 'about_html',   label: 'About / Boilerplate',    section: 'basic-info', wire: { to: 'basicInfo', key: 'boilerPlate' } },
   { path: 'logo_article_url', label: 'Article page logo',  section: 'basic-info', wire: { to: 'basicInfo', key: 'logoFilename', encode: filename } },
   { path: 'logo_top_url',     label: 'Top page logo',      section: 'basic-info', wire: { to: 'basicInfo', key: 'topLogoFilename', encode: filename } },
@@ -293,6 +298,14 @@ const COLLECTIONS: { [K in CollectionName]: CollectionDef<ItemOf<K>> } = {
     section: 'basic-info', entity: 'Sector',
     key: s => s.sector_name.trim().toLowerCase(),
     label: s => s.sector_name, detail: s => s.sector_type || null,
+    ordered: true,
+    localReason: 'The API has no sector write endpoint — set an industry instead.',
+  },
+  // The wire's own taxonomy (lib/industries.ts), addressed by id. The first is primary.
+  industries: {
+    section: 'basic-info', entity: 'Industry',
+    key: i => String(i.industry_id),
+    label: i => i.industry_name, detail: () => null,
     ordered: true, localReason: null,
   },
   // By (mic, ticker) — how the listings endpoints address a row.
@@ -342,9 +355,9 @@ function describeItemEdit(before: object, after: object): [string, string] {
 
 /** Wire ops for one item of an API-backed collection, at its draft position. */
 function itemOps(name: CollectionName, item: unknown, index: number, kind: 'add' | 'move'): WireOp[] {
-  if (name === 'sectors') {
-    const s = item as ItemOf<'sectors'>
-    return [{ kind: 'industry:put', name: s.sector_name, isPrimary: index === 0 }]
+  if (name === 'industries') {
+    const i = item as ItemOf<'industries'>
+    return [{ kind: 'industry:put', id: i.industry_id, isPrimary: index === 0 }]
   }
   if (name === 'exchange_listings') {
     const l = item as ItemOf<'exchange_listings'>
@@ -355,9 +368,8 @@ function itemOps(name: CollectionName, item: unknown, index: number, kind: 'add'
 }
 
 function removeOps(name: CollectionName, item: unknown): WireOp[] {
-  if (name === 'sectors') {
-    const s = item as ItemOf<'sectors'>
-    return [{ kind: 'industry:delete', name: s.sector_name, fallbackId: s.sector_id }]
+  if (name === 'industries') {
+    return [{ kind: 'industry:delete', id: (item as ItemOf<'industries'>).industry_id }]
   }
   if (name === 'exchange_listings') {
     const l = item as ItemOf<'exchange_listings'>
@@ -420,19 +432,23 @@ function collectionChanges<K extends CollectionName>(name: K, base: CompanyFull,
   }
 
   // Order. For listings every surviving row whose position moved needs its
-  // sortOrder rewritten; for sectors only the primary flag is stored.
+  // sortOrder rewritten; for industries only the primary flag is stored.
   if (def.ordered) {
     const beforeIndex = new Map(beforeItems.map((i, n) => [def.key(i), n]))
     const moved: WireOp[] = []
     afterItems.forEach((item, index) => {
       const was = beforeIndex.get(def.key(item))
       if (was === undefined || !sendable(item)) return
-      const positionChanged = name === 'sectors' ? (was === 0) !== (index === 0) : was !== index
+      const positionChanged = name === 'industries' ? (was === 0) !== (index === 0) : was !== index
       if (positionChanged) moved.push(...itemOps(name, item, index, 'move'))
     })
-    if (moved.length) {
+    // A local collection has no ops to send, so a move is detected directly.
+    const reordered = def.localReason !== null &&
+      afterItems.some((item, index) => { const was = beforeIndex.get(def.key(item)); return was !== undefined && was !== index })
+    if (moved.length || reordered) {
       changes.push({
-        type: 'edit', key: `${name}:order`, section: def.section, sync: 'api',
+        type: 'edit', key: `${name}:order`, section: def.section,
+        ...(def.localReason === null ? { sync: 'api' as const } : { sync: 'local' as const, reason: def.localReason }),
         field: `${name}:order`, label: `${def.entity} order`,
         old_value: beforeItems.map(def.label).join(', '),
         new_value: afterItems.map(def.label).join(', '),

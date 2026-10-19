@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { applyChanges, diffCompany, FIELDS, findConflicts, IGNORED_FIELDS } from './diff'
 import { blankCompany } from './blank'
-import type { CompanyContact, CompanyFull, CompanySector, ExchangeListing } from '../../types/company.types'
+import type { CompanyContact, CompanyFull, CompanyIndustry, CompanySector, ExchangeListing } from '../../types/company.types'
 
 /** A company as it comes off the API: no created_at. */
 function base(over: Partial<CompanyFull> = {}): CompanyFull {
@@ -10,6 +10,8 @@ function base(over: Partial<CompanyFull> = {}): CompanyFull {
 
 const sector = (sector_name: string, sector_id = 0): CompanySector =>
   ({ id: sector_id, company_id: 82, sector_id, sector_type: '', sector_name })
+
+const industry = (industry_id: number): CompanyIndustry => ({ industry_id, industry_name: `Industry ${industry_id}` })
 
 const listing = (exchange_id: string, ticker_code: string): ExchangeListing => ({
   id: 0, company_id: 82, exchange_id, exchange_name: '', ticker_code,
@@ -53,14 +55,15 @@ describe('diffCompany', () => {
     expect(uploaded.sync).toBe('local')
   })
 
-  it('keys sectors by name and sends the primary flag when it moves', () => {
-    const before = base({ sectors: [sector('Aerospace & Defence', 211)] })
-    // A sector picked in the editor carries a lib/sectors.ts id, not the wire's.
-    const after = { ...before, sectors: [sector('Engineering', 999), sector('Aerospace & Defence', 5)] }
-    expect(diffCompany(before, after).flatMap(c => c.ops)).toEqual([
-      { kind: 'industry:put', name: 'Engineering', isPrimary: true },
-      { kind: 'industry:put', name: 'Aerospace & Defence', isPrimary: false },
+  it('sends industries by wire id with the primary flag; keeps sectors local', () => {
+    const before = base({ industries: [industry(2)] })
+    const after = { ...before, industries: [industry(25), industry(2)], sectors: [sector('Engineering', 208)] }
+    const changes = diffCompany(before, after)
+    expect(changes.flatMap(c => c.ops)).toEqual([
+      { kind: 'industry:put', id: 25, isPrimary: true },
+      { kind: 'industry:put', id: 2, isPrimary: false },
     ])
+    expect(changes.find(c => c.key.startsWith('sectors:'))?.sync).toBe('local')
   })
 
   it('keys listings by (mic, ticker)', () => {
@@ -76,7 +79,7 @@ describe('diffCompany', () => {
     const covered = new Set([
       ...FIELDS.map(f => f.path.split('.')[0]),
       ...IGNORED_FIELDS,
-      'contacts', 'sectors', 'exchange_listings', 'wire_codes', 'rss_feeds', 'relations', 'wire_services',
+      'contacts', 'sectors', 'industries', 'exchange_listings', 'wire_codes', 'rss_feeds', 'relations', 'wire_services',
     ])
     expect(Object.keys(blankCompany(1)).filter(k => !covered.has(k))).toEqual([])
   })

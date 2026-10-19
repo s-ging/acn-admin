@@ -10,6 +10,7 @@ import {
   mapTicker,
   mergeCompanyDetail,
 } from './map-company'
+import { diffCompany } from '../companies/diff'
 import { codeHash } from '../wire-codes'
 import type {
   ApiCompanyDetail,
@@ -405,6 +406,8 @@ const COMPANY_FULL: ApiCompanyFull = {
     zhHant: 'Mitsubishi Heavy Industries, Ltd.',
     ko: 'Mitsubishi Heavy Industries, Ltd.',
   },
+  legalName: null,
+  country: null,
   url: 'https://www.mhi.com',
   urlJa: null,
   logoArticle: 'https://www.acnnewswire.com/images/company/MHI_new.jpg',
@@ -453,6 +456,32 @@ const COMPANY_FULL: ApiCompanyFull = {
 }
 
 describe('mapCompanyFull', () => {
+  // Captured from test company 9922 on the dev host after these writes, 2026-10-19:
+  //   PUT /api/Companies/9922               { basicInfo: { legalName } }
+  //   PUT …/industries/10 { isPrimary: true }, PUT …/industries/2 { isPrimary: false }
+  //   PUT …/social-links/instagram          { url }
+  // The commit's verify step diffs what it re-reads against the draft, so what
+  // was written must read back as the very same ops — or it is reported unlanded.
+  it('reads back industry, Instagram and legal-name writes as the same ops', () => {
+    const before = mapCompanyFull({ ...COMPANY_FULL, industries: [], socialLinks: [] })
+    const after = mapCompanyFull({
+      ...COMPANY_FULL,
+      legalName: 'ZZ Test Legal KK',
+      industries: [
+        { id: 2, name: 'Aerospace & Defense', isPrimary: false },
+        { id: 10, name: 'Broadcasting', isPrimary: true },
+      ],
+      socialLinks: [{ platform: 'instagram', url: 'https://instagram.com/zztest' }],
+    })
+    expect(after.industries.map(i => i.industry_id)).toEqual([10, 2])
+    expect(diffCompany(before, after).flatMap(c => c.ops)).toEqual([
+      { kind: 'basicInfo', key: 'legalName', value: 'ZZ Test Legal KK' },
+      { kind: 'social:put', platform: 'instagram', url: 'https://instagram.com/zztest' },
+      { kind: 'industry:put', id: 10, isPrimary: true },
+      { kind: 'industry:put', id: 2, isPrimary: false },
+    ])
+  })
+
   it('reads the nested names block', () => {
     const company = mapCompanyFull(COMPANY_FULL)
     expect(company.name_en).toBe('Mitsubishi Heavy Industries, Ltd.')

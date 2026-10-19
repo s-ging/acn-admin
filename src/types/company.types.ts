@@ -25,6 +25,9 @@ export interface Company {
   linkedin: string | null
   telegram: string | null
   instagram: string | null
+  legal_name: string | null
+  /** ISO 3166-1 alpha-2. The API validates it against its own Countries table. */
+  country_code: string | null
   established: string | null
   exchange_listed_date: string | null
   employees: string | null
@@ -86,6 +89,16 @@ export interface CompanySector {
   sector_id: number
   sector_type: string
   sector_name: string
+}
+
+/**
+ * An industry from the wire's own 43-entry taxonomy (lib/industries.ts) — not a
+ * sector. Sectors have no write endpoint; industries are what the API stores via
+ * /api/Companies/{id}/industries. The first in the list is primary.
+ */
+export interface CompanyIndustry {
+  industry_id: number
+  industry_name: string
 }
 
 export interface ExchangeListing {
@@ -158,6 +171,7 @@ export interface DeliverySettings {
 export interface CompanyFull extends Company {
   contacts: CompanyContact[]
   sectors: CompanySector[]
+  industries: CompanyIndustry[]
   exchange_listings: ExchangeListing[]
   wire_codes: CompanyWireCode[]
   rss_feeds: RSSFeed[]

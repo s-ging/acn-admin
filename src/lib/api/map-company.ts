@@ -31,6 +31,7 @@
 // The reverse mapping — CompanyFull back to the wire's write DTOs — is in
 // ./write.ts.
 
+import { industryName } from '../industries'
 import { blankCompany } from '../companies/blank'
 import { SECTORS } from '../sectors'
 import { BLOOMBERG_CODES } from '../bloomberg-codes'
@@ -470,6 +471,8 @@ export function mapCompanyFull(api: ApiCompanyFull): CompanyFull {
     logo_top_url: str(api.logoTop),
     url: str(api.url),
     url_ja: str(api.urlJa),
+    legal_name: str(api.legalName),
+    country_code: str(api.country),
     about_html: about,
 
     blog: str(socials?.blog),
@@ -478,6 +481,8 @@ export function mapCompanyFull(api: ApiCompanyFull): CompanyFull {
     youtube: str(socials?.youtube),
     linkedin: str(socials?.linkedin),
     telegram: str(socials?.telegram),
+    // The legacy `socials` object has no Instagram; /social-links writes land here.
+    instagram: str(api.socialLinks?.find(l => l.platform.toLowerCase() === 'instagram')?.url),
 
     established: str(profile?.established),
     // `listedDate` here; the legacy /details route spelled it `listed`.
@@ -510,6 +515,10 @@ export function mapCompanyFull(api: ApiCompanyFull): CompanyFull {
       ? api.sectors.map(mapSector)
       : sectorFromId(api.companyId, api.primarySectorId),
 
+    // Primary first — the diff treats position 0 as primary.
+    industries: [...(api.industries ?? [])]
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+      .map(i => ({ industry_id: i.id, industry_name: str(i.name) ?? industryName(i.id) })),
     exchange_listings: api.tickers?.map(mapTicker) ?? [],
     wire_codes: api.bloombergCodes?.map(mapBloombergCode) ?? [],
     rss_feeds: (api.rss ?? []).map(mapRssFeed).filter(feed => feed.feed_name !== ''),

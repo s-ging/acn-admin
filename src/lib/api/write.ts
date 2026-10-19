@@ -4,8 +4,8 @@
 // only turns those ops into HTTP.
 //
 //   basicInfo / details ops  → merged into ONE PUT /api/Companies/{id}
-//   industry ops             → PUT/DELETE /industries/{industryId}, the id
-//                              looked up by name in /api/Sectors
+//   industry ops             → PUT/DELETE /industries/{industryId}, ids from
+//                              lib/industries.ts (sectors have no write)
 //   listing ops              → POST/PUT/DELETE /listings[/{mic}/{ticker}]
 //   social ops               → PUT/DELETE /social-links/{platform}
 
@@ -16,7 +16,6 @@ import {
   deleteCompanyIndustry,
   deleteCompanyListing,
   deleteCompanySocialLink,
-  fetchSectors,
   saveCompanyIndustry,
   saveCompanySocialLink,
   updateCompany,
@@ -24,26 +23,6 @@ import {
 } from './endpoints'
 import type { ApiCompanyBasicInfo, ApiCompanyDetailsWrite } from './types'
 import type { CompanyChange, WireOp } from '../companies/diff'
-
-/** Name → wire industry id, from /api/Sectors. Fetched once per session, and only when needed. */
-let industryIdsPromise: Promise<Map<string, number>> | null = null
-
-function loadIndustryIds(): Promise<Map<string, number>> {
-  industryIdsPromise ??= fetchSectors().then(rows => {
-    const ids = new Map<string, number>()
-    for (const row of rows) {
-      for (const name of [row.name, row.description, row.title]) {
-        const key = name?.trim().toLowerCase()
-        if (key && !ids.has(key)) ids.set(key, row.id)
-      }
-    }
-    return ids
-  }).catch(err => {
-    industryIdsPromise = null
-    throw err
-  })
-  return industryIdsPromise
-}
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
@@ -58,20 +37,13 @@ export function fieldBody(ops: WireOp[]): { basicInfo: ApiCompanyBasicInfo; deta
   return { basicInfo, details }
 }
 
-async function industryId(name: string): Promise<number | undefined> {
-  return (await loadIndustryIds()).get(name.trim().toLowerCase())
-}
-
 async function runOp(companyId: number, op: WireOp): Promise<void> {
   switch (op.kind) {
-    case 'industry:put': {
-      const id = await industryId(op.name)
-      if (id === undefined) throw new Error(`the API has no sector named "${op.name}"`)
-      await saveCompanyIndustry(companyId, id, { isPrimary: op.isPrimary })
+    case 'industry:put':
+      await saveCompanyIndustry(companyId, op.id, { isPrimary: op.isPrimary })
       return
-    }
     case 'industry:delete':
-      await deleteCompanyIndustry(companyId, (await industryId(op.name)) ?? op.fallbackId)
+      await deleteCompanyIndustry(companyId, op.id)
       return
     case 'listing:create':
       await createCompanyListing(companyId, { mic: op.mic, ticker: op.ticker, isPrimary: op.isPrimary, sortOrder: op.sortOrder })
