@@ -1,5 +1,13 @@
 -- Seed for the dev API's Exchanges and Countries lookup tables.
--- Generated 2026-10-19 by the acn-admin team. Safe to re-run: existing rows are skipped.
+-- Generated 2026-10-19 by the acn-admin team.
+--
+-- What it does: INSERTs only. Each row is added only if its code is not already
+-- there, so existing rows are never changed and re-running is harmless. No
+-- UPDATE, DELETE, DROP or ALTER anywhere in this file.
+--
+-- All-or-nothing: it runs in one transaction. If any statement fails (e.g. a
+-- column name is wrong), nothing is written. To DRY-RUN, change the final
+-- COMMIT to ROLLBACK — the two SELECTs still show what would have been added.
 --
 -- !! Table and column names below are GUESSES (the API only reveals the table
 -- !! names "Exchanges" and "Countries" in its error messages). Adjust them to
@@ -7,6 +15,9 @@
 --   Exchanges — every exchangeId on existing company tickers (64 found, 3 corrected:
 --               OTC->OOTC, Dubai->XDFM, AMEX->XASE; the API requires 4-char ISO 10383)
 --   Countries — ISO 3166-1 alpha-2
+
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
 
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XHKG') INSERT INTO Exchanges (Mic, Name) VALUES ('XHKG', 'Hong Kong Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'OOTC') INSERT INTO Exchanges (Mic, Name) VALUES ('OOTC', 'OTC US');
@@ -19,27 +30,27 @@ IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XASE') INSERT INTO Exchanges
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XBKK') INSERT INTO Exchanges (Mic, Name) VALUES ('XBKK', 'Stock Exchange of Thailand');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XKLS') INSERT INTO Exchanges (Mic, Name) VALUES ('XKLS', 'Bursa Malaysia');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'OTCM') INSERT INTO Exchanges (Mic, Name) VALUES ('OTCM', 'OTC MKTS');
-IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XETR') INSERT INTO Exchanges (Mic, Name) VALUES ('XETR', 'Deutshe Borse');
+IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XETR') INSERT INTO Exchanges (Mic, Name) VALUES ('XETR', 'Deutsche Boerse Xetra');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XSHG') INSERT INTO Exchanges (Mic, Name) VALUES ('XSHG', 'Shanghai Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XLON') INSERT INTO Exchanges (Mic, Name) VALUES ('XLON', 'London Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XSTU') INSERT INTO Exchanges (Mic, Name) VALUES ('XSTU', 'Stuttgart Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XIDX') INSERT INTO Exchanges (Mic, Name) VALUES ('XIDX', 'Indonesia Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XSHE') INSERT INTO Exchanges (Mic, Name) VALUES ('XSHE', 'Shenzhen Stock Exchange');
-IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XASX') INSERT INTO Exchanges (Mic, Name) VALUES ('XASX', 'Australian Secur Exchange');
+IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XASX') INSERT INTO Exchanges (Mic, Name) VALUES ('XASX', 'Australian Securities Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XTAI') INSERT INTO Exchanges (Mic, Name) VALUES ('XTAI', 'Taiwan Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XPAR') INSERT INTO Exchanges (Mic, Name) VALUES ('XPAR', 'Euronext Paris');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XTSE') INSERT INTO Exchanges (Mic, Name) VALUES ('XTSE', 'Toronto Stock Exchange');
-IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XNSE') INSERT INTO Exchanges (Mic, Name) VALUES ('XNSE', 'National Stock Ex of India');
+IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XNSE') INSERT INTO Exchanges (Mic, Name) VALUES ('XNSE', 'National Stock Exchange of India');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XSWX') INSERT INTO Exchanges (Mic, Name) VALUES ('XSWX', 'SIX Swiss Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XTSX') INSERT INTO Exchanges (Mic, Name) VALUES ('XTSX', 'TSX Venture Exchange');
-IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XPHS') INSERT INTO Exchanges (Mic, Name) VALUES ('XPHS', 'Phillipine Stock Exchange');
-IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XCNQ') INSERT INTO Exchanges (Mic, Name) VALUES ('XCNQ', 'Canadian Nat Stock Exchange');
+IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XPHS') INSERT INTO Exchanges (Mic, Name) VALUES ('XPHS', 'Philippine Stock Exchange');
+IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XCNQ') INSERT INTO Exchanges (Mic, Name) VALUES ('XCNQ', 'Canadian Securities Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XKRX') INSERT INTO Exchanges (Mic, Name) VALUES ('XKRX', 'KOSPI Stock Market');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XBOM') INSERT INTO Exchanges (Mic, Name) VALUES ('XBOM', 'Bombay Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XAMS') INSERT INTO Exchanges (Mic, Name) VALUES ('XAMS', 'Euronext Amsterdam');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XKOS') INSERT INTO Exchanges (Mic, Name) VALUES ('XKOS', 'KOSDAQ');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XDUS') INSERT INTO Exchanges (Mic, Name) VALUES ('XDUS', 'Dusseldorf Stock Exchange');
-IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XWBO') INSERT INTO Exchanges (Mic, Name) VALUES ('XWBO', 'Weiner Borse AG');
+IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XWBO') INSERT INTO Exchanges (Mic, Name) VALUES ('XWBO', 'Wiener Boerse AG');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XSAU') INSERT INTO Exchanges (Mic, Name) VALUES ('XSAU', 'Saudi Stock Exchange');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XSTO') INSERT INTO Exchanges (Mic, Name) VALUES ('XSTO', 'NASDAQ OMX Stockholm');
 IF NOT EXISTS (SELECT 1 FROM Exchanges WHERE Mic = 'XLOM') INSERT INTO Exchanges (Mic, Name) VALUES ('XLOM', 'LSE International');
@@ -337,3 +348,9 @@ IF NOT EXISTS (SELECT 1 FROM Countries WHERE Code = 'ZA') INSERT INTO Countries 
 IF NOT EXISTS (SELECT 1 FROM Countries WHERE Code = 'ZM') INSERT INTO Countries (Code, Name) VALUES ('ZM', 'Zambia');
 IF NOT EXISTS (SELECT 1 FROM Countries WHERE Code = 'ZR') INSERT INTO Countries (Code, Name) VALUES ('ZR', 'Congo - Kinshasa');
 IF NOT EXISTS (SELECT 1 FROM Countries WHERE Code = 'ZW') INSERT INTO Countries (Code, Name) VALUES ('ZW', 'Zimbabwe');
+
+-- Row counts after the inserts (expect at least 62 exchanges, 266 countries).
+SELECT COUNT(*) AS exchanges FROM Exchanges;
+SELECT COUNT(*) AS countries FROM Countries;
+
+COMMIT;  -- change to ROLLBACK for a dry run
