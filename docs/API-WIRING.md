@@ -212,9 +212,9 @@ Bearer JWT (`VITE_API_TOKEN`, see `.env.example`), for:
 | Social links | `PUT` / `DELETE /api/Companies/{companyId}/social-links/{platform}` |
 | Events | `POST /api/Events`, `PUT` / `DELETE /api/Events/{id}` |
 
-There is still **no write for articles, contacts, Bloomberg/wire codes, RSS
-feeds, relations, wire services, delivery settings or status.** Those edits stay
-local-only.
+There is still **no write for articles, sectors, contacts, Bloomberg/wire codes,
+RSS feeds, relations, wire services, delivery settings or status.** Those edits
+stay local-only.
 
 ### Companies: base, draft, commit
 
@@ -265,13 +265,21 @@ How a company maps back:
 - `addr1..addr4` are street, district, city, country, as on read. Six social
   links ride on `details`; **Instagram**, which has no details field, uses
   `/social-links/instagram`.
-- **Industries are resolved by name** through `GET /api/Sectors`, whose ids are
-  the wire's (Aerospace & Defence = 211, matching `/full`). A sector picked in the
-  editor carries a `lib/sectors.ts` id, which is a different id space (AC-M1). A
-  name the wire does not have is reported, not guessed. The first sector is
-  primary.
+- **Industries are not sectors.** `/industries/{industryId}` takes ids from the
+  API's own 43-entry industry taxonomy (1 = None, 2 = Aerospace & Defense …
+  44 = Nanotechnology), held in `lib/industries.ts`. No endpoint lists it; it was
+  read off the write responses on 2026-10-19. `/api/Sectors` ids (Aerospace &
+  Defence = 211) are refused as "Unknown industry". So the editor has an
+  **Industry** picker beside Sector; industries are sent by id, the first is
+  primary (a `PUT … { isPrimary: true }` demotes the previous primary
+  server-side). **Sectors have no write endpoint** and are local-only.
 - **Listings are keyed by (mic, ticker)**; the read-side `exchangeId` values are
   MICs (`XTKS`, `XHKG`, `OOTC`). Position is `sortOrder`, and the first is primary.
+  **Blocked on dev:** the API validates `mic` against an Exchanges table that is
+  empty there, so every MIC is refused. Same for `countryCode` and the Countries
+  table. `docs/seed/seed-lookups.sql` seeds both (sent to the API owner
+  2026-10-19). Until then the listing read shape (`/full` → `listings[]`) is
+  unconfirmed and the mapper still reads the legacy `tickers`.
 - A create's response is undeclared; `createdId` accepts a bare number or
   `{ id | companyId | compId | eventId }`. The local draft is re-keyed to the new
   id at once, so a retry after a partial failure cannot POST a duplicate. If no
@@ -280,15 +288,19 @@ How a company maps back:
 Deletes have **no** local fallback: a delete that only happened here would come
 back on the next sync, so a refused delete removes nothing.
 
-Unverified, because nothing could be written to the dev host while building
-this: the create response shape, the `platform` spelling `/social-links`
-expects, and whether the sub-resource writes show up in `/full`. The sub-resource
-`GET`s (`/industries`, `/listings`, `/social-links`) answered `[]` for every
-company probed — including company 82, whose `/full` has four tickers — so they
-appear to read a newer store than `/full`. If sub-resource writes do not show in
-`/full`, step 6 above will report every sector and listing change as unlanded and
-keep it in the draft — and since a listing create is a POST, a retry would send
-it again. That needs an answer from the API team before relying on it.
+Verified live against the dev host, 2026-10-19 / 2026-10-21 (test company
+9922, created and deleted through the app's own commit and delete):
+
+- **Writes need no token on dev.** `VITE_API_TOKEN` is unused there for now.
+- **Create** returns `201 {"companyId": n}`.
+- **Where writes land in `/full`:** `/industries` → `industries[]`
+  (`{ id, name, isPrimary }`), `/social-links` → `socialLinks[]`
+  (`{ platform, url }`), both separate from the legacy `sectors`, `tickers` and
+  `socials` beside them. The six `details` socials land in `socials`.
+  `legalName` lands in `legalName`. The mapper reads all of these, so step 6
+  sees them as landed — proven by a full commit (add, reorder, remove) that
+  ended with an empty draft.
+- `platform` spelling: lowercase, `instagram`.
 
 Articles still use the older single-copy layout: `cacheArticle` writes an API
 record into the keyspace the editor reads from, but never over one marked edited.
@@ -328,7 +340,7 @@ mappers are tested against what the server actually sends.
 | Companies sheet | The same full 9,439 as the list |
 | Releases sheet | The first page — a sheet is a bulk-edit surface, not a browsing one |
 | Events list | `GET /api/Events/full` (816) + legacy `GET /api/Events` for the 23 unpublished, cached; display paginated |
-| Company save / delete | `PUT`/`POST`/`DELETE /api/Companies…` plus industries, listings, Instagram — see above |
+| Company save / delete | `PUT`/`POST`/`DELETE /api/Companies…` plus industries, Instagram (verified live) and listings (blocked on dev) — see above |
 | Event detail | The cached set, else `GET /api/Events/{id}/full`, else the legacy sweep |
 | Event save / delete / create | `PUT`/`DELETE /api/Events/{id}`, `POST /api/Events` |
 | Event releases | `GET /api/Events/company/{compId}/year/{year}` |
@@ -419,7 +431,7 @@ nothing is guessed.
 | --- | --- |
 | `created_at`, `updated_at`, `created_by`, `updated_by` | The API exposes no audit timestamps at all. Left empty rather than stamped with the fetch time, which would show every company as modified today — the list's Modified column renders `—`. |
 | `status` | No equivalent field. A company off the wire is mapped `active`, not `draft`. |
-| `instagram` | The API has blog/facebook/twitter/youTube/linkedIn/telegram, no Instagram. |
+| `instagram` | Not in the legacy `socials`; read from `/full` → `socialLinks[]` (platform `instagram`). Blank on every legacy company. |
 | `relations`, `wire_services` | No endpoint. |
 | `rss_feeds` | Partly closed 2026-09-23. `/api/Companies/{id}/full` → `rss[]` is `{ compId, id, rssName }` (company 574 populates it). Only the feed's NAME is on the wire — no url, sector or status — so `mapRssFeed` fills the name and leaves the rest at the blank default. |
 | `sedol`, `cusip` | Ticker rows carry only `isin`. |
